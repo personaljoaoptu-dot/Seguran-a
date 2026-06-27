@@ -2,8 +2,8 @@ import http.server
 import socketserver
 import os
 import urllib.parse
+import urllib.request
 import json
-import pg8000
 import bcrypt
 import uuid
 
@@ -45,32 +45,46 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_error_response("E-mail e senha são obrigatórios.")
                     return
                 
-                # Connect to PostgreSQL and query user
-                conn = pg8000.connect(
-                    host='144.91.121.55',
-                    port=5432,
-                    user='postgres',
-                    password='KtnYcxnVOGjD4thzS6tlBcW9',
-                    database='aegisyear'
+                # Fetch N8N webhook URL from environment or default to local tunnel
+                n8n_base = os.environ.get('N8N_URL', 'http://127.0.0.1:5678')
+                n8n_webhook_url = f"{n8n_base}/webhook/aegiseye-auth"
+                
+                print(f"[AUTH] Encaminhando consulta para o n8n: {n8n_webhook_url}")
+                
+                # Call n8n Webhook for DB query (Secure isolation)
+                req_data = json.dumps({"email": email}).encode('utf-8')
+                req = urllib.request.Request(
+                    n8n_webhook_url,
+                    data=req_data,
+                    headers={'Content-Type': 'application/json'},
+                    method='POST'
                 )
-                cursor = conn.cursor()
                 
-                # Fetch user details + Tenant name
-                cursor.execute("""
-                    SELECT u.password_hash, u.tenant_id, u.name, t.name AS tenant_name
-                    FROM users u
-                    JOIN tenants t ON u.tenant_id = t.id
-                    WHERE u.email = %s AND u.deleted_at IS NULL AND t.deleted_at IS NULL;
-                """, (email,))
+                try:
+                    with urllib.request.urlopen(req, timeout=8) as response:
+                        res_body = response.read().decode('utf-8')
+                        n8n_response = json.loads(res_body)
+                except Exception as e:
+                    print(f"[ERROR] Falha na comunicação com o n8n: {e}")
+                    self.send_error_response("Falha de autenticação: Serviço de segurança offline.")
+                    return
                 
-                user_row = cursor.fetchone()
+                # n8n PostgreSQL query output is typically an array of records
+                user_row = None
+                if isinstance(n8n_response, list) and len(n8n_response) > 0:
+                    user_row = n8n_response[0]
+                elif isinstance(n8n_response, dict):
+                    # In case n8n returns directly the object
+                    user_row = n8n_response
                 
-                if user_row:
-                    password_hash, tenant_id, user_name, tenant_name = user_row
+                if user_row and 'password_hash' in user_row:
+                    password_hash = user_row['password_hash']
+                    tenant_id = user_row.get('tenant_id')
+                    user_name = user_row.get('name', 'Usuário')
+                    tenant_name = user_row.get('tenant_name', 'Tenant')
                     
-                    # Verify bcrypt hash
+                    # Verify bcrypt hash locally in Python
                     if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
-                        # Successful login - generate token
                         session_token = str(uuid.uuid4())
                         
                         response_data = {
@@ -81,24 +95,17 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                             "tenant_name": tenant_name
                         }
                         self.send_success_response(response_data)
-                        
-                        # Session audit trace - set RLS current_tenant_id for verification in DB
-                        # (Normally, RLS is set during active database queries. Here we successfully validated
-                        # and returned the verified tenant ID to the SaaS frontend).
-                        print(f"[AUTH] Login bem-sucedido para {email} no Tenant {tenant_name} (RLS ID: {tenant_id})")
+                        print(f"[AUTH] Login bem-sucedido via n8n para {email} no Tenant {tenant_name}")
                     else:
                         print(f"[AUTH] Senha inválida para o e-mail: {email}")
                         self.send_error_response("E-mail ou senha incorretos.")
                 else:
-                    print(f"[AUTH] Usuário não encontrado ou inativo: {email}")
+                    print(f"[AUTH] Usuário não encontrado no n8n: {email}")
                     self.send_error_response("E-mail ou senha incorretos.")
-                    
-                cursor.close()
-                conn.close()
                 
             except Exception as e:
                 print(f"[ERROR] Erro interno durante autenticação: {e}")
-                self.send_error_response("Erro interno de comunicação com o banco de dados.")
+                self.send_error_response("Erro interno de comunicação.")
         else:
             self.send_error(404, "Route Not Found")
 
@@ -123,7 +130,7 @@ if __name__ == '__main__':
     socketserver.TCPServer.allow_reuse_address = True
     
     with socketserver.TCPServer(("", PORT), DashboardHandler) as httpd:
-        print(f"Python Server with Auth running at http://localhost:{PORT}/")
+        print(f"Python Server (n8n API Proxy) running at http://localhost:{PORT}/")
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

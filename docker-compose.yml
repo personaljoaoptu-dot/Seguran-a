@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  aegiseye-dashboard:
+    build: .
+    container_name: aegiseye-dashboard
+    ports:
+      - "8000:8000"
+    restart: always
+    environment:
+      - N8N_URL=http://n8n:5678 # Connects to n8n on the same docker network
+    networks:
+      - aegiseye-net
+
+networks:
+  aegiseye-net:
+    external: true
+    name: n8n-net # This network should match n8n's existing docker network. We can verify/rename this dynamically.

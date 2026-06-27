@@ -1,0 +1,78 @@
+{
+  "name": "AegisEye Auth Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aegiseye-auth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e2c3664d-5827-4c40-bd88-0679612c6a0c",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        180,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT u.password_hash, u.tenant_id, u.name, t.name AS tenant_name FROM users u JOIN tenants t ON u.tenant_id = t.id WHERE u.email = '{{ $json.body.email }}' AND u.deleted_at IS NULL AND t.deleted_at IS NULL;",
+        "options": {}
+      },
+      "id": "c1ffae40-e2b2-4d2c-8068-07e32402127b",
+      "name": "PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "id": "d0e1b2c3-4d5e-6f7g-8h9i-0j1k2l3m4n5o",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        620,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": true
+}
