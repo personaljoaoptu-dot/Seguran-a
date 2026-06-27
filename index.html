@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisEye AI - Prevenção Inteligente de Perdas</title>
+    <meta name="description" content="Dashboard interativo para o AegisEye AI, sistema de detecção comportamental para prevenção de perdas em supermercados.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="style.css?v=2">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <circle cx="12" cy="11" r="3"/>
+                    </svg>
+                    <div class="logo-text">
+                        <span class="logo-title">AegisEye</span>
+                        <span class="logo-subtitle">Loss Prevention AI</span>
+                    </div>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" data-tab="live" id="btn-tab-live">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                    Monitoramento Live
+                </button>
+                <button class="nav-item" data-tab="analytics" id="btn-tab-analytics">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+                    Analytics & Heatmaps
+                </button>
+                <button class="nav-item" data-tab="cameras" id="btn-tab-cameras">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4l3 3"/></svg>
+                    Gerenciar Câmeras
+                </button>
+                <button class="nav-item" data-tab="saas" id="btn-tab-saas">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    Simulador SaaS & ROI
+                </button>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="status-indicator-container">
+                    <span class="pulse-dot green"></span>
+                    <span class="status-text">Edge Node: <strong>Conectado</strong></span>
+                </div>
+                <div class="legal-disclaimer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="disclaimer-icon"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    100% LGPD Compliant (Sem Biometria Facial)
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="main-header">
+                <div class="header-title-area">
+                    <h1 id="view-title">Monitoramento Live</h1>
+                    <p class="header-subtitle" id="view-subtitle">Acompanhamento em tempo real e inteligência local</p>
+                </div>
+                <div class="header-stats">
+                    <div class="quick-stat">
+                        <span class="quick-stat-label">Alertas Hoje</span>
+                        <span class="quick-stat-value" id="stats-alerts-count">24</span>
+                    </div>
+                    <div class="quick-stat-divider"></div>
+                    <div class="quick-stat">
+                        <span class="quick-stat-label">Precisão IA</span>
+                        <span class="quick-stat-value text-cyan">92.4%</span>
+                    </div>
+                    <div class="quick-stat-divider"></div>
+                    <div class="quick-stat">
+                        <span class="quick-stat-label">Perdas Evitadas</span>
+                        <span class="quick-stat-value text-green" id="stats-saved-value">R$ 4.250</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- TAB 1: Live Monitor -->
+            <section class="tab-view active" id="view-live">
+                <div class="live-grid">
+                    <!-- Feed Column -->
+                    <div class="feed-column">
+                        <div class="camera-selectors">
+                            <button class="cam-select-btn active" data-cam="0">
+                                <span class="cam-indicator online"></span>
+                                Corredor 1 (Mercearia)
+                            </button>
+                            <button class="cam-select-btn" data-cam="1">
+                                <span class="cam-indicator online"></span>
+                                Corredor 2 (Biscoitos)
+                            </button>
+                            <button class="cam-select-btn" data-cam="2">
+                                <span class="cam-indicator warning"></span>
+                                Bebidas Finas
+                            </button>
+                            <button class="cam-select-btn" data-cam="3">
+                                <span class="cam-indicator online"></span>
+                                Caixa 1
+                            </button>
+                            <button class="cam-select-btn" data-cam="4">
+                                <span class="cam-indicator online"></span>
+                                Caixa 2 (Autoatendimento)
+                            </button>
+                        </div>
+                        
+                        <div class="video-container">
+                            <div class="video-header">
+                                <span class="camera-info-badge" id="active-cam-title">Corredor 1 (Mercearia)</span>
+                                <div class="video-controls">
+                                    <span class="video-fps">FPS: 30.2</span>
+                                    <span class="video-latency">Latência: 45ms</span>
+                                    <span class="rec-badge"><span class="rec-dot"></span>LIVE</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Video Simulation Canvas -->
+                            <div class="canvas-wrapper">
+                                <canvas id="video-canvas" width="800" height="450"></canvas>
+                                <div class="detection-overlay-notice" id="detection-notice">
+                                    Nenhuma atividade suspeita no momento
+                                </div>
+                            </div>
+                            
+                            <!-- Interactive Simulation Control -->
+                            <div class="simulation-controls">
+                                <div class="sim-select-group">
+                                    <select id="sim-type-selector" class="sim-dropdown">
+                                        <option value="concealment">Ocultamento de Produto</option>
+                                        <option value="lingering">Permanência Excessiva (Bebidas)</option>
+                                        <option value="running">Pessoa Correndo / Briga</option>
+                                        <option value="fall">Queda de Cliente (Segurança)</option>
+                                        <option value="shelf">Gôndola Vazia / Reposição</option>
+                                    </select>
+                                    <button class="action-btn" id="btn-trigger-suspicious">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                        Simular Ação
+                                    </button>
+                                </div>
+                                <div class="sim-speed-selector">
+                                    <span class="sim-speed-label">Sensibilidade IA:</span>
+                                    <input type="range" min="50" max="95" value="75" class="range-slider" id="sensitivity-slider">
+                                    <span class="sim-speed-value" id="sensitivity-val">75%</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Console Logging Container -->
+                        <div class="console-card">
+                            <div class="card-header">
+                                <h3>Logs do Processador de IA (Edge Node)</h3>
+                                <button class="clear-btn" id="btn-clear-logs">Limpar</button>
+                            </div>
+                            <div class="console-log-area" id="console-logs">
+                                <div class="log-line info">[18:04:12] [AegisEdge-01] Iniciando pipelines de inferência YOLO11 + ByteTrack...</div>
+                                <div class="log-line info">[18:04:13] [AegisEdge-01] 5 fluxos RTSP carregados e conectados com sucesso.</div>
+                                <div class="log-line success">[18:04:14] [Caixa 2] Modelo de Checkout ativo. Detecção de itens não escaneados habilitada.</div>
+                                <div class="log-line info">[18:04:15] [Corredor 1] Track ID #104 criado para objeto tipo "Pessoa"</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Alert Queue Column -->
+                    <div class="alert-column">
+                        <div class="alerts-header">
+                            <h2>Fila de Alertas Operacionais</h2>
+                            <span class="alert-count-badge" id="active-alert-badge">3 ativos</span>
+                        </div>
+                        
+                        <div class="alerts-queue" id="alerts-queue-container">
+                            <!-- Alert Card 1 -->
+                            <div class="alert-card critical anim-pulse-card" data-alert-id="1">
+                                <div class="alert-card-header">
+                                    <span class="severity-badge critical">Crítico</span>
+                                    <span class="alert-time">14:51</span>
+                                </div>
+                                <div class="alert-card-body">
+                                    <h3 class="alert-title">Produto escondido sob a roupa</h3>
+                                    <p class="alert-details">Objeto retirado da prateleira e ocultado na jaqueta.</p>
+                                    <div class="alert-meta">
+                                        <span>Cam: <strong>Bebidas Finas</strong></span>
+                                        <span>Confiança: <strong class="text-rose">84%</strong></span>
+                                    </div>
+                                </div>
+                                <div class="alert-card-actions">
+                                    <button class="btn-play-clip" data-alert-id="1">Rever Clipe</button>
+                                    <div class="alert-feedback-btns">
+                                        <button class="btn-feedback correct" title="Confirmar Alerta" data-alert-id="1">✓</button>
+                                        <button class="btn-feedback incorrect" title="Falso Positivo" data-alert-id="1">✗</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Alert Card 2 -->
+                            <div class="alert-card warning" data-alert-id="2">
+                                <div class="alert-card-header">
+                                    <span class="severity-badge warning">Atenção</span>
+                                    <span class="alert-time">14:40</span>
+                                </div>
+                                <div class="alert-card-body">
+                                    <h3 class="alert-title">Permanência prolongada na seção</h3>
+                                    <p class="alert-details">Cliente parado na zona de risco há mais de 12 minutos.</p>
+                                    <div class="alert-meta">
+                                        <span>Cam: <strong>Bebidas Finas</strong></span>
+                                        <span>Dwell: <strong>12m 34s</strong></span>
+                                    </div>
+                                </div>
+                                <div class="alert-card-actions">
+                                    <button class="btn-play-clip" data-alert-id="2">Rever Clipe</button>
+                                    <div class="alert-feedback-btns">
+                                        <button class="btn-feedback correct" title="Confirmar Alerta" data-alert-id="2">✓</button>
+                                        <button class="btn-feedback incorrect" title="Falso Positivo" data-alert-id="2">✗</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Alert Card 3 -->
+                            <div class="alert-card medium" data-alert-id="3">
+                                <div class="alert-card-header">
+                                    <span class="severity-badge medium">Médio</span>
+                                    <span class="alert-time">14:32</span>
+                                </div>
+                                <div class="alert-card-body">
+                                    <h3 class="alert-title">Objeto colocado em mochila</h3>
+                                    <p class="alert-details">Objeto retirado de prateleira inserido em mochila de costas.</p>
+                                    <div class="alert-meta">
+                                        <span>Cam: <strong>Corredor 1 (Mercearia)</strong></span>
+                                        <span>Confiança: <strong class="text-amber">91%</strong></span>
+                                    </div>
+                                </div>
+                                <div class="alert-card-actions">
+                                    <button class="btn-play-clip" data-alert-id="3">Rever Clipe</button>
+                                    <div class="alert-feedback-btns">
+                                        <button class="btn-feedback correct" title="Confirmar Alerta" data-alert-id="3">✓</button>
+                                        <button class="btn-feedback incorrect" title="Falso Positivo" data-alert-id="3">✗</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: Metrics & Heatmaps -->
+            <section class="tab-view" id="view-analytics">
+                <div class="analytics-layout">
+                    <!-- Store Map Card -->
+                    <div class="analytics-card map-card">
+                        <div class="card-header">
+                            <div>
+                                <h3>Mapa de Calor de Riscos (Planta da Loja)</h3>
+                                <p class="card-subtitle">Áreas com maior incidência de alertas comportamentais acumulados nas últimas 24 horas</p>
+                            </div>
+                            <div class="map-controls">
+                                <button class="action-btn btn-sm active" id="btn-toggle-heatmap">Calor Ativo</button>
+                                <button class="action-btn btn-sm" id="btn-reset-heatmap">Resetar Dados</button>
+                            </div>
+                        </div>
+                        <div class="heatmap-canvas-container">
+                            <canvas id="heatmap-canvas" width="750" height="400"></canvas>
+                        </div>
+                        <div class="heatmap-legend">
+                            <span class="legend-title">Severidade de Perda / Frequência:</span>
+                            <div class="legend-gradient"></div>
+                            <div class="legend-labels">
+                                <span>Baixo (Zonas Frias)</span>
+                                <span>Médio</span>
+                                <span>Alto (Zonas Quentes)</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Stats Charts and Grid -->
+                    <div class="analytics-sidebar-grid">
+                        <div class="analytics-card metric-card">
+                            <h3>Distribuição de Incidentes por Corredor</h3>
+                            <div class="chart-container">
+                                <!-- Simulated SVG Bar Chart -->
+                                <svg class="svg-chart" viewBox="0 0 100 60">
+                                    <!-- Grid lines -->
+                                    <line x1="15" y1="5" x2="95" y2="5" stroke="var(--slate-800)" stroke-dasharray="2" stroke-width="0.5"/>
+                                    <line x1="15" y1="20" x2="95" y2="20" stroke="var(--slate-800)" stroke-dasharray="2" stroke-width="0.5"/>
+                                    <line x1="15" y1="35" x2="95" y2="35" stroke="var(--slate-800)" stroke-dasharray="2" stroke-width="0.5"/>
+                                    <line x1="15" y1="50" x2="95" y2="50" stroke="var(--slate-800)" stroke-width="1"/>
+                                    
+                                    <!-- Bar labels -->
+                                    <text x="12" y="10" class="chart-text label" text-anchor="end">Bebidas</text>
+                                    <text x="12" y="24" class="chart-text label" text-anchor="end">Corr. 1</text>
+                                    <text x="12" y="38" class="chart-text label" text-anchor="end">Caixas</text>
+                                    <text x="12" y="52" class="chart-text label" text-anchor="end">Corr. 2</text>
+                                    
+                                    <!-- Bars -->
+                                    <rect x="15" y="6" width="75" height="6" rx="2" fill="url(#rose-grad)"/>
+                                    <rect x="15" y="20" width="50" height="6" rx="2" fill="url(#amber-grad)"/>
+                                    <rect x="15" y="34" width="30" height="6" rx="2" fill="url(#cyan-grad)"/>
+                                    <rect x="15" y="48" width="15" height="6" rx="2" fill="url(#indigo-grad)"/>
+                                    
+                                    <!-- Values -->
+                                    <text x="93" y="10" class="chart-text val">15</text>
+                                    <text x="68" y="24" class="chart-text val">10</text>
+                                    <text x="48" y="38" class="chart-text val">6</text>
+                                    <text x="33" y="52" class="chart-text val">3</text>
+                                    
+                                    <defs>
+                                        <linearGradient id="rose-grad" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stop-color="var(--rose-600)"/>
+                                            <stop offset="100%" stop-color="var(--rose-400)"/>
+                                        </linearGradient>
+                                        <linearGradient id="amber-grad" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stop-color="var(--amber-600)"/>
+                                            <stop offset="100%" stop-color="var(--amber-400)"/>
+                                        </linearGradient>
+                                        <linearGradient id="cyan-grad" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stop-color="var(--cyan-600)"/>
+                                            <stop offset="100%" stop-color="var(--cyan-400)"/>
+                                        </linearGradient>
+                                        <linearGradient id="indigo-grad" x1="0" y1="0" x2="1" y2="0">
+                                            <stop offset="0%" stop-color="var(--indigo-600)"/>
+                                            <stop offset="100%" stop-color="var(--indigo-400)"/>
+                                        </linearGradient>
+                                    </defs>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <div class="analytics-card metric-card">
+                            <h3>Alertas por Faixa Horária</h3>
+                            <div class="chart-container">
+                                <!-- Simulated SVG Line Chart -->
+                                <svg class="svg-chart" viewBox="0 0 100 50">
+                                    <!-- Grid lines -->
+                                    <line x1="10" y1="10" x2="95" y2="10" stroke="var(--slate-800)" stroke-dasharray="2" stroke-width="0.5"/>
+                                    <line x1="10" y1="25" x2="95" y2="25" stroke="var(--slate-800)" stroke-dasharray="2" stroke-width="0.5"/>
+                                    <line x1="10" y1="40" x2="95" y2="40" stroke="var(--slate-800)" stroke-width="1"/>
+                                    
+                                    <!-- Chart line -->
+                                    <path d="M 10 38 Q 25 35 35 22 T 60 12 T 80 30 T 95 38" fill="none" stroke="var(--cyan-500)" stroke-width="1.5"/>
+                                    
+                                    <!-- Points -->
+                                    <circle cx="10" cy="38" r="1.2" fill="var(--cyan-500)"/>
+                                    <circle cx="35" cy="22" r="1.2" fill="var(--cyan-500)"/>
+                                    <circle cx="60" cy="12" r="1.2" fill="var(--cyan-500)"/>
+                                    <circle cx="80" cy="30" r="1.2" fill="var(--cyan-500)"/>
+                                    <circle cx="95" cy="38" r="1.2" fill="var(--cyan-500)"/>
+                                    
+                                    <!-- X Axis Labels -->
+                                    <text x="10" y="46" class="chart-text axis" text-anchor="middle">08h</text>
+                                    <text x="35" y="46" class="chart-text axis" text-anchor="middle">12h</text>
+                                    <text x="60" y="46" class="chart-text axis" text-anchor="middle">16h</text>
+                                    <text x="80" y="46" class="chart-text axis" text-anchor="middle">20h</text>
+                                    <text x="95" y="46" class="chart-text axis" text-anchor="middle">22h</text>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: Manage Cameras -->
+            <section class="tab-view" id="view-cameras">
+                <div class="camera-management-panel">
+                    <div class="camera-list-container">
+                        <div class="section-title-with-action">
+                            <h2>Câmeras Conectadas e Ativas</h2>
+                            <span class="camera-total-count" id="camera-total-count-badge">5 Câmeras</span>
+                        </div>
+                        
+                        <div class="camera-cards-grid" id="camera-grid">
+                            <!-- Card Cam 0 -->
+                            <div class="camera-setup-card">
+                                <div class="camera-setup-header">
+                                    <div class="camera-setup-title-group">
+                                        <span class="camera-index">CAM-01</span>
+                                        <h4>Corredor 1 (Mercearia)</h4>
+                                    </div>
+                                    <span class="badge-status online">Online</span>
+                                </div>
+                                <div class="camera-setup-details">
+                                    <p><strong>URL RTSP:</strong> rtsp://192.168.1.100/ch1</p>
+                                    <p><strong>Dispositivo:</strong> Intelbras VIP 3230 B</p>
+                                    <p><strong>Modo IA:</strong> Ocultamento / Suspeita</p>
+                                </div>
+                                <div class="camera-setup-actions">
+                                    <button class="action-btn btn-sm btn-outline">Editar</button>
+                                    <button class="action-btn btn-sm btn-danger-outline">Remover</button>
+                                </div>
+                            </div>
+                            <!-- Card Cam 1 -->
+                            <div class="camera-setup-card">
+                                <div class="camera-setup-header">
+                                    <div class="camera-setup-title-group">
+                                        <span class="camera-index">CAM-02</span>
+                                        <h4>Corredor 2 (Biscoitos)</h4>
+                                    </div>
+                                    <span class="badge-status online">Online</span>
+                                </div>
+                                <div class="camera-setup-details">
+                                    <p><strong>URL RTSP:</strong> rtsp://192.168.1.100/ch2</p>
+                                    <p><strong>Dispositivo:</strong> Dahua HDW1230S</p>
+                                    <p><strong>Modo IA:</strong> Ocultamento / Fluxo de Pessoas</p>
+                                </div>
+                                <div class="camera-setup-actions">
+                                    <button class="action-btn btn-sm btn-outline">Editar</button>
+                                    <button class="action-btn btn-sm btn-danger-outline">Remover</button>
+                                </div>
+                            </div>
+                            <!-- Card Cam 2 -->
+                            <div class="camera-setup-card alert-active">
+                                <div class="camera-setup-header">
+                                    <div class="camera-setup-title-group">
+                                        <span class="camera-index">CAM-03</span>
+                                        <h4>Bebidas Finas</h4>
+                                    </div>
+                                    <span class="badge-status warning-badge">Alerta</span>
+                                </div>
+                                <div class="camera-setup-details">
+                                    <p><strong>URL RTSP:</strong> rtsp://192.168.1.100/ch3</p>
+                                    <p><strong>Dispositivo:</strong> Hikvision DS-2CD2021G1</p>
+                                    <p><strong>Modo IA:</strong> Permanência Alta / Ocultamento</p>
+                                </div>
+                                <div class="camera-setup-actions">
+                                    <button class="action-btn btn-sm btn-outline">Editar</button>
+                                    <button class="action-btn btn-sm btn-danger-outline">Remover</button>
+                                </div>
+                            </div>
+                            <!-- Card Cam 3 -->
+                            <div class="camera-setup-card">
+                                <div class="camera-setup-header">
+                                    <div class="camera-setup-title-group">
+                                        <span class="camera-index">CAM-04</span>
+                                        <h4>Caixa 1</h4>
+                                    </div>
+                                    <span class="badge-status online">Online</span>
+                                </div>
+                                <div class="camera-setup-details">
+                                    <p><strong>URL RTSP:</strong> rtsp://192.168.1.100/ch4</p>
+                                    <p><strong>Dispositivo:</strong> Hikvision DS-2CD1023G0</p>
+                                    <p><strong>Modo IA:</strong> Desistência / Fila Larga</p>
+                                </div>
+                                <div class="camera-setup-actions">
+                                    <button class="action-btn btn-sm btn-outline">Editar</button>
+                                    <button class="action-btn btn-sm btn-danger-outline">Remover</button>
+                                </div>
+                            </div>
+                            <!-- Card Cam 4 -->
+                            <div class="camera-setup-card">
+                                <div class="camera-setup-header">
+                                    <div class="camera-setup-title-group">
+                                        <span class="camera-index">CAM-05</span>
+                                        <h4>Caixa 2 (Autoatendimento)</h4>
+                                    </div>
+                                    <span class="badge-status online">Online</span>
+                                </div>
+                                <div class="camera-setup-details">
+                                    <p><strong>URL RTSP:</strong> rtsp://192.168.1.100/ch5</p>
+                                    <p><strong>Dispositivo:</strong> Intelbras VIP 1230 D</p>
+                                    <p><strong>Modo IA:</strong> Checkout Não Escaneado</p>
+                                </div>
+                                <div class="camera-setup-actions">
+                                    <button class="action-btn btn-sm btn-outline">Editar</button>
+                                    <button class="action-btn btn-sm btn-danger-outline">Remover</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Camera Add Form -->
+                    <div class="camera-add-card">
+                        <h3>Adicionar Nova Câmera IP / Canal DVR</h3>
+                        <p class="card-subtitle">Conecte um novo fluxo de vídeo RTSP e selecione as diretrizes de IA</p>
+                        
+                        <form class="camera-form" id="camera-add-form" onsubmit="return false;">
+                            <div class="form-group">
+                                <label for="cam-name">Nome Descritivo da Câmera</label>
+                                <input type="text" id="cam-name" placeholder="Ex: Corredor 3 (Limpeza)" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="cam-rtsp">URL RTSP do Vídeo</label>
+                                <input type="text" id="cam-rtsp" placeholder="Ex: rtsp://admin:senha@192.168.1.100:554/live/ch1" required>
+                            </div>
+                            
+                            <div class="form-row">
+                                <div class="form-group half">
+                                    <label for="cam-device">Marca / Modelo do Aparelho</label>
+                                    <select id="cam-device">
+                                        <option value="Intelbras VIP">Intelbras VIP Series</option>
+                                        <option value="Hikvision DS">Hikvision Bullet/Dome</option>
+                                        <option value="Dahua HDW">Dahua Network Camera</option>
+                                        <option value="ONVIF Genérica">Genérica ONVIF IP Cam</option>
+                                    </select>
+                                </div>
+                                <div class="form-group half">
+                                    <label for="cam-profile">Perfil de IA Comportamental</label>
+                                    <select id="cam-profile">
+                                        <option value="Ocultamento / Suspeita">Ocultamento de Itens (Jaqueta/Mochila)</option>
+                                        <option value="Tempo de Permanência">Permanência Excedida (Zonas Caras)</option>
+                                        <option value="Autoatendimento / Scan">Não Escaneados (Checkout)</option>
+                                        <option value="Movimentação Rápida">Pessoa Correndo / Invasão</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <button type="submit" class="action-btn w-full" id="btn-add-camera">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                Conectar Câmera
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: SaaS Calculator -->
+            <section class="tab-view" id="view-saas">
+                <div class="saas-container">
+                    <div class="saas-header">
+                        <h2>Simulador de Negócios & Proposta Comercial</h2>
+                        <p class="card-subtitle">Calcule o preço de assinatura do software AegisEye AI e demonstre o Retorno sobre o Investimento (ROI) para o supermercado</p>
+                    </div>
+                    
+                    <div class="saas-grid">
+                        <!-- Configurator Column -->
+                        <div class="saas-card config-card">
+                            <h3>Parâmetros do Supermercado</h3>
+                            <p class="card-subtitle">Insira as informações de tamanho e perdas atuais da loja</p>
+                            
+                            <div class="calculator-controls">
+                                <div class="calc-control-group">
+                                    <div class="calc-label-row">
+                                        <span class="calc-control-label">Quantidade de Câmeras IP</span>
+                                        <span class="calc-control-bubble" id="calc-val-cameras">12 câmeras</span>
+                                    </div>
+                                    <input type="range" min="4" max="64" value="12" class="range-slider font-slider" id="saas-cameras-slider">
+                                    <div class="range-labels">
+                                        <span>4 Câm.</span>
+                                        <span>32 Câm.</span>
+                                        <span>64 Câm.</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="calc-control-group">
+                                    <div class="calc-label-row">
+                                        <span class="calc-control-label">Perda Mensal Estimada por Furtos</span>
+                                        <span class="calc-control-bubble highlight" id="calc-val-losses">R$ 15.000</span>
+                                    </div>
+                                    <input type="range" min="1000" max="80000" step="1000" value="15000" class="range-slider font-slider" id="saas-losses-slider">
+                                    <div class="range-labels">
+                                        <span>R$ 1.000</span>
+                                        <span>R$ 40.000</span>
+                                        <span>R$ 80.000</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="calc-control-group">
+                                    <div class="calc-label-row">
+                                        <span class="calc-control-label">Taxa de Prevenção Estimada da IA</span>
+                                        <span class="calc-control-bubble text-cyan" id="calc-val-rate">60%</span>
+                                    </div>
+                                    <input type="range" min="30" max="90" step="5" value="60" class="range-slider font-slider" id="saas-rate-slider">
+                                    <div class="range-labels">
+                                        <span>30% (Conservador)</span>
+                                        <span>60% (Recomendado)</span>
+                                        <span>90% (Otimista)</span>
+                                    </div>
+                                </div>
+
+                                <div class="calc-control-group">
+                                    <span class="calc-control-label">Módulos de IA Adicionais</span>
+                                    <div class="checkbox-group" style="margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                                        <label class="checkbox-label" style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px; cursor: pointer; color: var(--slate-200); line-height: 1.4;">
+                                            <input type="checkbox" id="saas-module-ops" style="accent-color: var(--indigo-500); width: 15px; height: 15px; margin-top: 2px;">
+                                            <span>Módulo Operações (+ R$ 199/mês)<br><small style="color: var(--slate-400);">Simula alertas de reposição de gôndolas vazias, controle de filas no checkout e quedas de clientes.</small></span>
+                                        </label>
+                                        <label class="checkbox-label" style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px; cursor: pointer; color: var(--slate-200); line-height: 1.4;">
+                                            <input type="checkbox" id="saas-infra-cloud" style="accent-color: var(--indigo-500); width: 15px; height: 15px; margin-top: 2px;">
+                                            <span>Processamento em Nuvem (Cloud GPU)<br><small style="color: var(--slate-400);">Caso ativado, o processamento ocorre na nuvem (+ R$ 25/câmera por mês). Desativado processa em Mini-PC Edge local.</small></span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="business-info-notice">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="info-icon"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                <span>A mensalidade escala por quantidade de câmeras processadas em tempo real. A infraestrutura básica pode ser local (Edge PC) ou em nuvem com GPUs.</span>
+                            </div>
+                        </div>
+                        
+                        <!-- ROI Results Column -->
+                        <div class="saas-card result-card">
+                            <h3>Resultados Financeiros (Projeção SaaS)</h3>
+                            <p class="card-subtitle">Análise detalhada do valor de assinatura e economia mensal gerada</p>
+                            
+                            <div class="roi-summary-grid" style="grid-template-columns: repeat(3, 1fr);">
+                                <div class="roi-item">
+                                    <span class="roi-label">Mensalidade SaaS</span>
+                                    <span class="roi-val text-indigo" id="saas-subscription-price" style="font-size: 16px;">R$ 599 / mês</span>
+                                    <span class="roi-desc" id="saas-plan-name">Plano Silver (Até 16 Câm.)</span>
+                                </div>
+                                
+                                <div class="roi-item">
+                                    <span class="roi-label">Custo Hospedagem</span>
+                                    <span class="roi-val text-amber" id="saas-infra-cost" style="font-size: 16px;">R$ 150 / mês</span>
+                                    <span class="roi-desc" id="saas-infra-desc">Servidor Edge Local</span>
+                                </div>
+
+                                <div class="roi-item">
+                                    <span class="roi-label">Perdas Prevenidas</span>
+                                    <span class="roi-val text-green" id="saas-recovered-losses" style="font-size: 16px;">R$ 9.000 / mês</span>
+                                    <span class="roi-desc">Evitado pela IA</span>
+                                </div>
+                            </div>
+                            
+                            <div class="roi-net-savings">
+                                <div class="net-savings-title">Retorno Líquido Mensal para o Cliente</div>
+                                <div class="net-savings-value" id="saas-net-savings">R$ 8.401 / mês</div>
+                                <div class="net-savings-annual" id="saas-annual-savings">Economia anual estimada: R$ 100.812 / ano</div>
+                            </div>
+                            
+                            <div class="pricing-tiers">
+                                <h4>Estrutura Comercial Proposta (SaaS)</h4>
+                                <div class="tier-grid">
+                                    <div class="tier-col" id="tier-bronze">
+                                        <div class="tier-name">Bronze (Até 8 Câmeras)</div>
+                                        <div class="tier-price">R$ 399/mês</div>
+                                    </div>
+                                    <div class="tier-col active" id="tier-silver">
+                                        <div class="tier-name">Silver (Até 16 Câmeras)</div>
+                                        <div class="tier-price">R$ 599/mês</div>
+                                    </div>
+                                    <div class="tier-col" id="tier-gold">
+                                        <div class="tier-name">Gold (Até 32 Câmeras)</div>
+                                        <div class="tier-price">R$ 1.199/mês</div>
+                                    </div>
+                                    <div class="tier-col" id="tier-enterprise">
+                                        <div class="tier-name">Enterprise (64+ Câmeras)</div>
+                                        <div class="tier-price">R$ 2.299/mês</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Alert Clip Modal Playback -->
+    <div class="modal" id="video-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-alert-title">Replay do Incidente Operacional</h3>
+                <button class="close-modal" id="btn-close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-video-wrapper">
+                    <canvas id="modal-video-canvas" width="640" height="360"></canvas>
+                    <div class="modal-detection-banner" id="modal-detection-text">
+                        OCULTAMENTO DETECTADO (CONFIANÇA: 84%)
+                    </div>
+                </div>
+                <div class="modal-meta-info">
+                    <p><strong>Câmera:</strong> <span id="modal-meta-camera">Bebidas Finas</span></p>
+                    <p><strong>Horário:</strong> <span id="modal-meta-time">14:51:22</span></p>
+                    <p><strong>Gatilho Comportamental:</strong> <span id="modal-meta-trigger">Objeto retirado de prateleira -> movimento rápido para o bolso interno da jaqueta.</span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <span class="modal-footer-label">Este alerta foi classificado corretamente?</span>
+                <div class="modal-feedback-actions">
+                    <button class="action-btn btn-success" id="btn-modal-feedback-correct">✓ Sim, Alerta Correto</button>
+                    <button class="action-btn btn-danger-outline" id="btn-modal-feedback-incorrect">✗ Não, Falso Alarme</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Javascript Logic -->
+    <script src="app_v2.js"></script>
+</body>
+</html>

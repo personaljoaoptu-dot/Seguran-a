@@ -1,0 +1,14 @@
+# AegisEye AI Dashboard - Git Ignore
+
+# Python local embedded environment (prevent committing runtime)
+python311/
+
+# Temporary installer and test scripts
+install_python.ps1
+get_python_embed.ps1
+test_fetch.js
+
+# Logs and system files
+*.log
+.DS_Store
+Thumbs.db
