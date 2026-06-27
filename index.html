@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <script>
+        if (!sessionStorage.getItem('aegiseye_session_token')) {
+            window.location.href = 'login.html';
+        }
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AegisEye AI - Prevenção Inteligente de Perdas</title>
@@ -49,6 +54,15 @@
             </nav>
             
             <div class="sidebar-footer">
+                <div class="user-profile-card" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 10px; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <span id="sidebar-user-name" style="color: var(--white); font-weight: 600;">Carregando...</span>
+                        <span id="sidebar-tenant-name" style="color: var(--slate-400);">Tenant</span>
+                    </div>
+                    <button id="btn-logout" style="background: none; border: none; color: var(--rose-500); cursor: pointer; display: flex; align-items: center;" title="Sair">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    </button>
+                </div>
                 <div class="status-indicator-container">
                     <span class="pulse-dot green"></span>
                     <span class="status-text">Edge Node: <strong>Conectado</strong></span>

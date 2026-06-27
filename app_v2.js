@@ -1,6 +1,24 @@
 // --- AEGISEYE AI - INTERACTIVE SYSTEM ENGINE ---
 
 document.addEventListener('DOMContentLoaded', () => {
+    // --- LOAD USER SESSION & LOGOUT ---
+    const userName = sessionStorage.getItem('aegiseye_user_name') || 'Usuário';
+    const tenantName = sessionStorage.getItem('aegiseye_tenant_name') || 'Tenant';
+    
+    const elSidebarUser = document.getElementById('sidebar-user-name');
+    const elSidebarTenant = document.getElementById('sidebar-tenant-name');
+    const btnLogout = document.getElementById('btn-logout');
+    
+    if (elSidebarUser) elSidebarUser.innerText = userName;
+    if (elSidebarTenant) elSidebarTenant.innerText = tenantName;
+    
+    if (btnLogout) {
+        btnLogout.addEventListener('click', () => {
+            sessionStorage.clear();
+            window.location.href = 'login.html';
+        });
+    }
+
     // --- STATE MANAGEMENT & VARIABLES ---
     let activeTab = 'live';
     let activeCameraId = 0;
