@@ -8,11 +8,11 @@ services:
       - "8000:8000"
     restart: always
     environment:
-      - N8N_URL=http://n8n:5678 # Connects to n8n on the same docker network
+      - N8N_URL=http://n8n_app:5678 # Connects to n8n_app inside Docker network
     networks:
-      - aegiseye-net
+      - infrastructure_internal_net
 
 networks:
-  aegiseye-net:
+  infrastructure_internal_net:
     external: true
-    name: n8n-net # This network should match n8n's existing docker network. We can verify/rename this dynamically.
+    name: infrastructure_internal_net
