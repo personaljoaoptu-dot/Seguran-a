@@ -47,7 +47,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 
                 # Fetch N8N webhook URL from environment or default to local tunnel
                 n8n_base = os.environ.get('N8N_URL', 'http://127.0.0.1:5678')
-                n8n_webhook_url = f"{n8n_base}/webhook/aegiseye-auth"
+                n8n_webhook_url = f"{n8n_base}/webhook/8c4ab76c-30c1-419b-a010-91a5e55209f8/webhook/aegiseye-auth"
                 
                 print(f"[AUTH] Encaminhando consulta para o n8n: {n8n_webhook_url}")
                 
