@@ -18,8 +18,8 @@ def check_exec_data():
         cols = [c[0] for c in cursor.fetchall()]
         print("execution_data columns:", cols)
         
-        # Query execution data for execution ID 1
-        cursor.execute("SELECT * FROM execution_data WHERE \"executionId\" = '1';")
+        # Query execution data for execution ID 12
+        cursor.execute("SELECT * FROM execution_data WHERE \"executionId\" = '12';")
         row = cursor.fetchone()
         if row:
             for c, val in zip(cols, row):

@@ -54,9 +54,10 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseCode": 400,
         "responseBody": "={{ { success: false, message: 'Falha na validação dos dados', errors: $json.errors } }}",
-        "options": {}
+        "options": {
+          "responseCode": 400
+        }
       },
       "id": "f5e4d3c2-b1a0-4f9e-8d7c-6b5a4b3c2d1e",
       "name": "Respond Error",
@@ -112,9 +113,10 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseCode": 200,
         "responseBody": "={{ { success: true, message: 'Cadastro efetuado com sucesso!', data: { usuario_id: $('Insert Usuario').item.json.id, empresa_id: $json.id } } }}",
-        "options": {}
+        "options": {
+          "responseCode": 200
+        }
       },
       "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
       "name": "Respond Success",

@@ -1,18 +1,26 @@
 import urllib.request
+import urllib.error
 import json
 import sys
+import random
+
+def generate_random_cpf():
+    return "".join(str(random.randint(0, 9)) for _ in range(11))
 
 def test_registration():
     url = "http://144.91.121.55:5678/webhook/e4f8a6b1-cdbe-4712-a1f9-d892a01f30f5/webhook/cadastro-seguranca"
     
-    # Test 1: Valid registration
+    # Test 1: Valid registration (Dynamic data)
     print("Testing valid registration payload...")
+    cpf = generate_random_cpf()
+    email = f"carvalho.silva+{random.randint(10000, 99999)}@seguranca.com.br"
+    
     valid_payload = {
         "nome": "Carvalho Silva",
-        "email": "carvalho.silva@seguranca.com.br",
+        "email": email,
         "whatsapp": "+5511988887777",
         "nome_empresa": "Carvalho Monitoramento SA",
-        "cpf": "98765432109"
+        "cpf": cpf
     }
     
     try:
@@ -23,6 +31,7 @@ def test_registration():
         )
         with urllib.request.urlopen(req, timeout=10) as response:
             res_body = response.read().decode('utf-8')
+            print("Raw Response:", res_body)
             res_json = json.loads(res_body)
             print(f"Success Response: {res_json}")
             assert res_json['success'] == True
@@ -31,7 +40,6 @@ def test_registration():
             print("Valid registration test PASSED!")
     except Exception as e:
         print(f"Error testing valid registration: {e}")
-        # Read the error body if available
         if hasattr(e, 'read'):
             print("Error body:", e.read().decode('utf-8'))
         sys.exit(1)
@@ -60,6 +68,7 @@ def test_registration():
         res_body = e.read().decode('utf-8')
         res_json = json.loads(res_body)
         print(f"Correctly caught validation error (HTTP {e.code}): {res_json}")
+        assert e.code == 400
         assert res_json['success'] == False
         assert len(res_json['errors']) > 0
         print("Invalid registration validation test PASSED!")
@@ -71,3 +80,4 @@ def test_registration():
 
 if __name__ == '__main__':
     test_registration()
+

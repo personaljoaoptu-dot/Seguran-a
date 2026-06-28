@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AegisEye AI - Login SaaS</title>
+    <title>AegisEye AI - Login & Cadastro SaaS</title>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,6 +21,7 @@
             --indigo-600: #4f46e5;
             --cyan-500: #06b6d4;
             --rose-500: #f43f5e;
+            --emerald-500: #10b981;
             
             --glow-indigo: 0 0 25px rgba(99, 102, 241, 0.4);
             --glow-cyan: 0 0 25px rgba(6, 182, 212, 0.4);
@@ -85,33 +86,34 @@
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: var(--radius-lg);
-            width: 420px;
-            padding: 40px;
+            width: 440px;
+            padding: 35px;
             z-index: 10;
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            transition: all 0.3s ease;
         }
 
         .logo-area {
             text-align: center;
-            margin-bottom: 35px;
+            margin-bottom: 25px;
         }
 
         .logo-icon {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 50px;
-            height: 50px;
+            width: 46px;
+            height: 46px;
             background: linear-gradient(135deg, var(--indigo-500) 0%, var(--cyan-500) 100%);
             border-radius: 12px;
             color: var(--white);
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             box-shadow: var(--glow-indigo);
         }
 
         .logo-title {
             font-family: var(--font-heading);
-            font-size: 26px;
+            font-size: 24px;
             font-weight: 800;
             color: var(--white);
             letter-spacing: -0.5px;
@@ -120,20 +122,58 @@
         .logo-subtitle {
             font-size: 13px;
             color: var(--slate-400);
-            margin-top: 5px;
+            margin-top: 4px;
+        }
+
+        /* Tabs Toggle */
+        .card-tabs {
+            display: flex;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 25px;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--slate-400);
+            padding: 10px 5px;
+            font-family: var(--font-heading);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            text-align: center;
+        }
+
+        .tab-btn.active {
+            color: var(--white);
+        }
+
+        .tab-btn.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--indigo-500), var(--cyan-500));
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
         }
 
         /* Form Inputs */
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 18px;
         }
 
         .form-label {
             display: block;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             color: var(--slate-400);
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -147,7 +187,7 @@
             background-color: rgba(2, 6, 23, 0.5);
             border: 1px solid var(--slate-800);
             color: var(--white);
-            padding: 12px 16px;
+            padding: 11px 14px;
             border-radius: var(--radius-md);
             font-family: var(--font-body);
             font-size: 14px;
@@ -160,17 +200,27 @@
             box-shadow: 0 0 0 1px var(--indigo-500), 0 0 10px rgba(99, 102, 241, 0.25);
         }
 
-        /* Error Banner */
+        /* Notification Banners */
+        .banner {
+            border-radius: var(--radius-md);
+            padding: 12px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            display: none;
+            text-align: left;
+            line-height: 1.4;
+        }
+
         .error-banner {
             background-color: rgba(244, 63, 94, 0.1);
             border: 1px solid var(--rose-500);
             color: var(--rose-500);
-            padding: 12px;
-            border-radius: var(--radius-md);
-            font-size: 13px;
-            margin-bottom: 20px;
-            display: none;
-            text-align: center;
+        }
+
+        .success-banner {
+            background-color: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--emerald-500);
+            color: var(--emerald-500);
         }
 
         /* Submit Button */
@@ -179,7 +229,7 @@
             background: linear-gradient(135deg, var(--indigo-600) 0%, var(--indigo-500) 100%);
             border: none;
             color: var(--white);
-            padding: 14px;
+            padding: 12px;
             border-radius: var(--radius-md);
             font-family: var(--font-heading);
             font-weight: 600;
@@ -238,16 +288,23 @@
     <div class="login-card">
         <div class="logo-area">
             <div class="logo-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
             </div>
             <h1 class="logo-title">AegisEye AI</h1>
-            <p class="logo-subtitle">Acesso Restrito ao Painel de Prevenção</p>
+            <p class="logo-subtitle" id="form-subtitle">Acesso Restrito ao Painel de Prevenção</p>
         </div>
 
-        <div class="error-banner" id="error-banner">
-            Credenciais incorretas.
+        <!-- Banners -->
+        <div class="banner error-banner" id="error-banner"></div>
+        <div class="banner success-banner" id="success-banner"></div>
+
+        <!-- Tab Toggle Buttons -->
+        <div class="card-tabs">
+            <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">Acessar Painel</button>
+            <button class="tab-btn" id="tab-register" onclick="switchTab('register')">Cadastrar Empresa</button>
         </div>
 
+        <!-- Login Form -->
         <form id="login-form">
             <div class="form-group">
                 <label class="form-label" for="email">E-mail</label>
@@ -263,9 +320,52 @@
                 </div>
             </div>
 
-            <button type="submit" class="submit-btn" id="submit-btn">
-                <span class="spinner" id="btn-spinner"></span>
+            <button type="submit" class="submit-btn" id="login-submit-btn">
+                <span class="spinner" id="login-btn-spinner"></span>
                 <span>Entrar no Sistema</span>
+            </button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="register-form" style="display: none;">
+            <div class="form-group">
+                <label class="form-label" for="reg-nome">Nome do Gestor</label>
+                <div class="input-wrapper">
+                    <input type="text" id="reg-nome" class="form-input" placeholder="Ex: João da Silva" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="reg-email">E-mail de Contato</label>
+                <div class="input-wrapper">
+                    <input type="email" id="reg-email" class="form-input" placeholder="contato@empresa.com" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="reg-whatsapp">WhatsApp</label>
+                <div class="input-wrapper">
+                    <input type="text" id="reg-whatsapp" class="form-input" placeholder="+55 (11) 99999-9999" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="reg-empresa">Nome da Empresa</label>
+                <div class="input-wrapper">
+                    <input type="text" id="reg-empresa" class="form-input" placeholder="Ex: Supermercado Alvorada" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label" for="reg-cpf">CPF do Responsável</label>
+                <div class="input-wrapper">
+                    <input type="text" id="reg-cpf" class="form-input" placeholder="000.000.000-00" required>
+                </div>
+            </div>
+
+            <button type="submit" class="submit-btn" id="reg-submit-btn">
+                <span class="spinner" id="reg-btn-spinner"></span>
+                <span>Solicitar Cadastro</span>
             </button>
         </form>
 
@@ -275,20 +375,79 @@
     </div>
 
     <script>
+        // Tab switching logic
+        function switchTab(tab) {
+            const tabLogin = document.getElementById('tab-login');
+            const tabRegister = document.getElementById('tab-register');
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            const subtitle = document.getElementById('form-subtitle');
+            
+            // Clear banners on switch
+            document.getElementById('error-banner').style.display = 'none';
+            document.getElementById('success-banner').style.display = 'none';
+
+            if (tab === 'login') {
+                tabLogin.classList.add('active');
+                tabRegister.classList.remove('active');
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+                subtitle.innerText = 'Acesso Restrito ao Painel de Prevenção';
+            } else {
+                tabLogin.classList.remove('active');
+                tabRegister.classList.add('active');
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+                subtitle.innerText = 'Configure sua Nova Conta SaaS';
+            }
+        }
+
+        // Input Mask for CPF (000.000.000-00)
+        const cpfInput = document.getElementById('reg-cpf');
+        cpfInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value.length > 11) value = value.slice(0, 11);
+            
+            if (value.length > 9) {
+                value = value.replace(/^(\d{3})(\d{3})(\d{3})(\d{1,2})$/, '$1.$2.$3-$4');
+            } else if (value.length > 6) {
+                value = value.replace(/^(\d{3})(\d{3})(\d{1,3})$/, '$1.$2.$3');
+            } else if (value.length > 3) {
+                value = value.replace(/^(\d{3})(\d{1,3})$/, '$1.$2');
+            }
+            e.target.value = value;
+        });
+
+        // Input Mask for WhatsApp (+55 (11) 99999-9999)
+        const whatsappInput = document.getElementById('reg-whatsapp');
+        whatsappInput.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/[^\d+]/g, '');
+            if (!value.startsWith('+')) {
+                // If the user starts typing digits directly, assume BR (+55)
+                if (value.length > 0) {
+                    value = '+55' + value.replace(/^\+?55/, '');
+                }
+            }
+            // Simple visual placeholder helper
+            e.target.value = value;
+        });
+
+        // Login Handler
         const loginForm = document.getElementById('login-form');
         const emailInput = document.getElementById('email');
         const passwordInput = document.getElementById('password');
-        const submitBtn = document.getElementById('submit-btn');
-        const spinner = document.getElementById('btn-spinner');
+        const loginSubmitBtn = document.getElementById('login-submit-btn');
+        const loginSpinner = document.getElementById('login-btn-spinner');
         const errorBanner = document.getElementById('error-banner');
+        const successBanner = document.getElementById('success-banner');
 
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            // UI Feedback
             errorBanner.style.display = 'none';
-            submitBtn.disabled = true;
-            spinner.style.display = 'inline-block';
+            successBanner.style.display = 'none';
+            loginSubmitBtn.disabled = true;
+            loginSpinner.style.display = 'inline-block';
 
             const email = emailInput.value;
             const password = passwordInput.value;
@@ -303,16 +462,13 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    // Save session details
                     sessionStorage.setItem('aegiseye_session_token', data.session_token);
                     sessionStorage.setItem('aegiseye_user_name', data.user_name);
                     sessionStorage.setItem('aegiseye_tenant_id', data.tenant_id);
                     sessionStorage.setItem('aegiseye_tenant_name', data.tenant_name);
-                    
-                    // Redirect to main panel
                     window.location.href = '/index.html';
                 } else {
-                    errorBanner.innerText = data.message || 'Credenciais inválidas ou erro no servidor.';
+                    errorBanner.innerText = data.message || 'Credenciais inválidas.';
                     errorBanner.style.display = 'block';
                 }
             } catch (err) {
@@ -320,8 +476,64 @@
                 errorBanner.style.display = 'block';
                 console.error(err);
             } finally {
-                submitBtn.disabled = false;
-                spinner.style.display = 'none';
+                loginSubmitBtn.disabled = false;
+                loginSpinner.style.display = 'none';
+            }
+        });
+
+        // Register Handler
+        const registerForm = document.getElementById('register-form');
+        const regNome = document.getElementById('reg-nome');
+        const regEmail = document.getElementById('reg-email');
+        const regWhatsapp = document.getElementById('reg-whatsapp');
+        const regEmpresa = document.getElementById('reg-empresa');
+        const regCpf = document.getElementById('reg-cpf');
+        const regSubmitBtn = document.getElementById('reg-submit-btn');
+        const regSpinner = document.getElementById('reg-btn-spinner');
+
+        registerForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            errorBanner.style.display = 'none';
+            successBanner.style.display = 'none';
+            regSubmitBtn.disabled = true;
+            regSpinner.style.display = 'inline-block';
+
+            // Extract values and strip formatting characters
+            const nome = regNome.value.trim();
+            const email = regEmail.value.trim();
+            const whatsapp = regWhatsapp.value.trim();
+            const nome_empresa = regEmpresa.value.trim();
+            const cpf = regCpf.value.replace(/\D/g, ''); // strip to raw digits
+
+            try {
+                const response = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nome, email, whatsapp, nome_empresa, cpf })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    successBanner.innerHTML = `<strong>Cadastro Concluído!</strong><br>${data.message}<br><small>User ID: ${data.data.usuario_id}<br>Tenant ID: ${data.data.empresa_id}</small>`;
+                    successBanner.style.display = 'block';
+                    registerForm.reset();
+                } else {
+                    let errMsg = data.message || 'Falha no cadastro.';
+                    if (data.errors && Array.isArray(data.errors)) {
+                        errMsg += '<br>• ' + data.errors.join('<br>• ');
+                    }
+                    errorBanner.innerHTML = errMsg;
+                    errorBanner.style.display = 'block';
+                }
+            } catch (err) {
+                errorBanner.innerText = 'Falha na conexão com o servidor de cadastro.';
+                errorBanner.style.display = 'block';
+                console.error(err);
+            } finally {
+                regSubmitBtn.disabled = false;
+                regSpinner.style.display = 'none';
             }
         });
     </script>

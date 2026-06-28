@@ -106,6 +106,71 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f"[ERROR] Erro interno durante autenticação: {e}")
                 self.send_error_response("Erro interno de comunicação.")
+        
+        elif self.path == '/api/register':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                nome = payload.get('nome', '').strip()
+                email = payload.get('email', '').strip()
+                whatsapp = payload.get('whatsapp', '').strip()
+                nome_empresa = payload.get('nome_empresa', '').strip()
+                cpf = payload.get('cpf', '').strip()
+                
+                if not all([nome, email, whatsapp, nome_empresa, cpf]):
+                    self.send_error_response("Todos os campos são obrigatórios.")
+                    return
+                
+                # Fetch N8N webhook URL from environment or default to local tunnel
+                n8n_base = os.environ.get('N8N_URL', 'http://127.0.0.1:5678')
+                n8n_webhook_url = f"{n8n_base}/webhook/e4f8a6b1-cdbe-4712-a1f9-d892a01f30f5/webhook/cadastro-seguranca"
+                
+                print(f"[REGISTER] Encaminhando cadastro para o n8n: {n8n_webhook_url}")
+                
+                # Call n8n Webhook for registration
+                req_data = json.dumps({
+                    "nome": nome,
+                    "email": email,
+                    "whatsapp": whatsapp,
+                    "nome_empresa": nome_empresa,
+                    "cpf": cpf
+                }).encode('utf-8')
+                
+                req = urllib.request.Request(
+                    n8n_webhook_url,
+                    data=req_data,
+                    headers={'Content-Type': 'application/json'},
+                    method='POST'
+                )
+                
+                try:
+                    with urllib.request.urlopen(req, timeout=12) as response:
+                        res_body = response.read().decode('utf-8')
+                        n8n_response = json.loads(res_body)
+                        status_code = response.getcode()
+                except urllib.error.HTTPError as he:
+                    res_body = he.read().decode('utf-8')
+                    try:
+                        n8n_response = json.loads(res_body)
+                    except Exception:
+                        n8n_response = {"success": False, "message": "Erro de comunicação com o n8n."}
+                    status_code = he.code
+                except Exception as e:
+                    print(f"[ERROR] Falha na comunicação com o n8n para cadastro: {e}")
+                    self.send_error_response("Serviço de cadastro offline.")
+                    return
+                
+                # Forward response to frontend
+                self.send_response(status_code)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(n8n_response).encode('utf-8'))
+                
+            except Exception as e:
+                print(f"[ERROR] Erro interno durante o cadastro: {e}")
+                self.send_error_response("Erro interno ao processar o cadastro.")
         else:
             self.send_error(404, "Route Not Found")
 
