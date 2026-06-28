@@ -53,19 +53,10 @@
     },
     {
       "parameters": {
-        "respondWith": "text",
+        "respondWith": "json",
         "responseCode": 400,
-        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Falha na validação dos dados\",\n  \"errors\": {{ JSON.stringify($json.errors) }}\n}",
-        "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          }
-        }
+        "responseBody": "={{ { success: false, message: 'Falha na validação dos dados', errors: $json.errors } }}",
+        "options": {}
       },
       "id": "f5e4d3c2-b1a0-4f9e-8d7c-6b5a4b3c2d1e",
       "name": "Respond Error",
@@ -120,19 +111,10 @@
     },
     {
       "parameters": {
-        "respondWith": "text",
+        "respondWith": "json",
         "responseCode": 200,
-        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Cadastro efetuado com sucesso!\",\n  \"data\": {\n    \"usuario_id\": \"{{ $('Insert Usuario').item.json.id }}\",\n    \"empresa_id\": \"{{ $json.id }}\"\n  }\n}",
-        "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              }
-            ]
-          }
-        }
+        "responseBody": "={{ { success: true, message: 'Cadastro efetuado com sucesso!', data: { usuario_id: $('Insert Usuario').item.json.id, empresa_id: $json.id } } }}",
+        "options": {}
       },
       "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
       "name": "Respond Success",
@@ -171,14 +153,14 @@
       "main": [
         [
           {
-            "node": "Respond Error",
+            "node": "Insert Usuario",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Insert Usuario",
+            "node": "Respond Error",
             "type": "main",
             "index": 0
           }
