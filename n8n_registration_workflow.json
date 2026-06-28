@@ -1,0 +1,214 @@
+{
+  "name": "IA Security - Cadastro de Clientes",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cadastro-seguranca",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e4f8a6b1-cdbe-4712-a1f9-d892a01f30f5",
+      "name": "Webhook Recv",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        100,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body || {};\nconst { nome, email, whatsapp, nome_empresa, cpf } = body;\n\nconst errors = [];\nif (!nome || nome.trim().length === 0) errors.push(\"Nome é obrigatório.\");\nif (!email || !email.includes('@')) errors.push(\"E-mail inválido.\");\nif (!whatsapp || whatsapp.trim().length < 8) errors.push(\"Whatsapp inválido.\");\nif (!nome_empresa || nome_empresa.trim().length === 0) errors.push(\"Nome da empresa é obrigatório.\");\nif (!cpf || cpf.replace(/\\D/g, '').length !== 11) errors.push(\"CPF inválido. Deve conter 11 dígitos.\");\n\nif (errors.length > 0) {\n  return {\n    json: {\n      isValid: false,\n      errors\n    }\n  };\n}\n\nreturn {\n  json: {\n    isValid: true,\n    data: { nome, email, whatsapp, nome_empresa, cpf }\n  }\n};"
+      },
+      "id": "c3b1a2d4-5e6f-4a3b-9c8d-7e6f5a4b3c2d",
+      "name": "Validate Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isValid }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-e5f6-4a3b-8c9d-7e6f5a4b3c2d",
+      "name": "Check Validity",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        500,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseCode": 400,
+        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Falha na validação dos dados\",\n  \"errors\": {{ JSON.stringify($json.errors) }}\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "f5e4d3c2-b1a0-4f9e-8d7c-6b5a4b3c2d1e",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        700,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO usuarios (nome, email, whatsapp, cpf) VALUES ('{{ $('Validate Data').item.json.data.nome }}', '{{ $('Validate Data').item.json.data.email }}', '{{ $('Validate Data').item.json.data.whatsapp }}', '{{ $('Validate Data').item.json.data.cpf }}') RETURNING id;",
+        "options": {}
+      },
+      "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Insert Usuario",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        360
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO empresas (usuario_id, nome_empresa) VALUES ('{{ $json.id }}', '{{ $('Validate Data').item.json.data.nome_empresa }}') RETURNING id;",
+        "options": {}
+      },
+      "id": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f",
+      "name": "Insert Empresa",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        360
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseCode": 200,
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Cadastro efetuado com sucesso!\",\n  \"data\": {\n    \"usuario_id\": \"{{ $('Insert Usuario').item.json.id }}\",\n    \"empresa_id\": \"{{ $json.id }}\"\n  }\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        360
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Recv": {
+      "main": [
+        [
+          {
+            "node": "Validate Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Data": {
+      "main": [
+        [
+          {
+            "node": "Check Validity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Validity": {
+      "main": [
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Usuario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Usuario": {
+      "main": [
+        [
+          {
+            "node": "Insert Empresa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Empresa": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": true
+}
