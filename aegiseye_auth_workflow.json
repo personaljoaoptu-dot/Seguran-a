@@ -31,7 +31,13 @@
       "position": [
         400,
         240
-      ]
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
     },
     {
       "parameters": {
