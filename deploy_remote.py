@@ -12,7 +12,8 @@ def deploy():
         "server.py",
         "Dockerfile",
         "docker-compose.yml",
-        "aegiseye_auth_workflow.json"
+        "aegiseye_auth_workflow.json",
+        "n8n_registration_workflow.json"
     ]
     
     remote_dir = "/root/aegiseye-dashboard"
@@ -65,12 +66,15 @@ def deploy():
                 sys.stdout.buffer.write(stderr_str.encode('utf-8', errors='ignore'))
                 sys.stdout.write("\n")
                 
-        # 4. Integrate n8n workflow
-        print("\nIntegrating DDL/Authentication workflow in n8n container...")
+        # 4. Integrate n8n workflows
+        print("\nIntegrating DDL/Authentication/Registration workflows in n8n container...")
         n8n_cmds = [
             f"docker cp {remote_dir}/aegiseye_auth_workflow.json n8n_app:/tmp/aegiseye_auth_workflow.json",
             "docker exec -u node n8n_app n8n import:workflow --input=/tmp/aegiseye_auth_workflow.json",
-            "docker exec -u root n8n_app rm -f /tmp/aegiseye_auth_workflow.json"
+            "docker exec -u root n8n_app rm -f /tmp/aegiseye_auth_workflow.json",
+            f"docker cp {remote_dir}/n8n_registration_workflow.json n8n_app:/tmp/n8n_registration_workflow.json",
+            "docker exec -u node n8n_app n8n import:workflow --input=/tmp/n8n_registration_workflow.json",
+            "docker exec -u root n8n_app rm -f /tmp/n8n_registration_workflow.json"
         ]
         
         for cmd in n8n_cmds:
