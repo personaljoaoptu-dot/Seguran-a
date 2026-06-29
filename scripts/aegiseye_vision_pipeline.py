@@ -44,16 +44,27 @@ ROI_POLYGON = [
     [0.02, 0.98]  
 ]
 
-# Track state metrics
-infractions = {} # track_id -> {"start_time": t, "last_seen": t, "fired": bool}
-infractions_lock = threading.Lock()
+# Load Haar Cascade for face detection (Looking at camera heuristic)
+face_cascade = None
+try:
+    cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+    face_cascade = cv2.CascadeClassifier(cascade_path)
+    if face_cascade.empty():
+        print("[ENGINE] Classificador de faces não pôde ser carregado (XML vazio). Usando heurística alternativa.")
+        face_cascade = None
+    else:
+        print("[ENGINE] Classificador de faces carregado com sucesso para detecção de olhar.")
+except Exception as e:
+    print(f"[ENGINE] Erro ao carregar Cascade de faces: {e}. Detecção de olhar será simulada/estimada.")
+    face_cascade = None
 
-# Persistent state tracking: track_id -> {"last_seen_with_bag": timestamp, "bag_conf": float, "bag_type": str}
-tracked_persons_with_bags = {}
+# Persistent state tracking: track_id -> dict
+tracked_persons = {}
 tracked_lock = threading.Lock()
 
 BAG_PERSISTENCE_DURATION = 12.0 # Keep "carrying bag" state active for 12 seconds
-LINGERING_THRESHOLD = 5.0 # Segundos de permanência conjunta para gerar alerta
+LINGERING_THRESHOLD = 15.0 # Segundos de permanência no ROI para loitering
+CONCEALMENT_DISTANCE_THRESHOLD = 120.0 # Pixels (Euclidean distance) between person center and bag/object to assume interaction
 
 def is_point_in_polygon(x, y, poly):
     """Ray-casting algorithm in Python for geometry check (Point in Polygon)"""
@@ -318,9 +329,9 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-def process_detections_and_infractions(detections, W, H):
-    """Processes detections and updates infraction timers mathematically (No drawing)"""
-    global infractions, tracked_persons_with_bags
+def process_detections_and_infractions(detections, W, H, frame=None, simulate=False):
+    """Processes detections and updates infraction timers with advanced behavior tracking & log throttling"""
+    global tracked_persons
     current_time = time.time()
     
     # Map ROI coords to pixels
@@ -328,113 +339,259 @@ def process_detections_and_infractions(detections, W, H):
     
     # Extract bboxes by target class
     persons = []
-    bags = []
+    objects = []
     
     for det in detections:
         bbox = det["bbox"]
         cls = det["class"]
         
-        # Bottom-center of the bbox
+        # Center of the bbox
         cx = int(bbox[0] + bbox[2] / 2)
-        cy = int(bbox[1] + bbox[3])
+        cy = int(bbox[1] + bbox[3] / 2)
         
-        # Check ROI intersection
-        in_roi = is_point_in_polygon(cx, cy, roi_pixels)
+        # Bottom-center of the bbox (for ROI check)
+        bcx = cx
+        bcy = int(bbox[1] + bbox[3])
+        
+        # Check ROI intersection using bottom-center
+        in_roi = is_point_in_polygon(bcx, bcy, roi_pixels)
         
         if cls == "person":
-            persons.append({"track_id": det.get("track_id", 0), "center": (cx, cy), "conf": det["conf"], "in_roi": in_roi, "bbox": bbox})
+            persons.append({
+                "track_id": det.get("track_id", 0),
+                "center": (cx, cy),
+                "conf": det["conf"],
+                "in_roi": in_roi,
+                "bbox": bbox
+            })
         elif cls in ["handbag", "backpack", "bag", "suitcase", "briefcase", "cell phone", "snowboard", "skateboard", "umbrella", "elephant", "surfboard"]:
-            bags.append({"center": (cx, cy), "conf": det["conf"], "in_roi": in_roi, "class": cls})
+            objects.append({
+                "center": (cx, cy),
+                "conf": det["conf"],
+                "in_roi": in_roi,
+                "class": cls,
+                "bbox": bbox
+            })
 
-    # Step 1: Active Association check (Check distance between center of person and center of bag)
+    # Association & Update State
     with tracked_lock:
+        detected_track_ids = set()
+        
         for p in persons:
-            px1, py1, pw, ph = p["bbox"]
-            pcx = px1 + pw / 2
-            pcy = py1 + ph / 2
             track_id = p["track_id"]
+            detected_track_ids.add(track_id)
+            pcx, pcy = p["center"]
+            px1, py1, pw, ph = p["bbox"]
+            in_roi = p["in_roi"]
             
-            for b in bags:
-                bx, by = b["center"]
-                dist = math.sqrt((pcx - bx) ** 2 + (pcy - by) ** 2)
+            # Initialize track if new
+            if track_id not in tracked_persons:
+                tracked_persons[track_id] = {
+                    "start_time": current_time,
+                    "last_seen": current_time,
+                    "last_logged": 0.0,
+                    "first_in_roi_time": current_time if in_roi else None,
+                    "standing_still_start": None,
+                    "accumulated_standing_still": 0.0,
+                    "last_position": (pcx, pcy),
+                    "position_history": [(pcx, pcy, current_time)],
+                    "has_bag": False,
+                    "bag_conf": 0.0,
+                    "bag_type": "bag",
+                    "bag_persistence_start": None,
+                    "look_at_camera_duration": 0.0,
+                    "last_look_at_camera_time": None,
+                    "concealment_events": 0,
+                    "last_concealment_event_time": 0.0,
+                    "alerts_fired": set(),
+                    "highest_risk_percentage": 0
+                }
+                print(f"[AI-INFO] Rastreando nova pessoa #{track_id} em ({pcx}, {pcy}). ROI={in_roi}")
                 
-                # Lenient Euclidean distance check between centers (800px is wide and scale-invariant)
-                if dist < 800:
-                    # Persist "carrying bag" state for this person
-                    tracked_persons_with_bags[track_id] = {
-                        "last_seen_with_bag": current_time,
-                        "bag_conf": b["conf"],
-                        "bag_type": b["class"]
-                    }
-                    print(f"[AI-PERSIST] Pessoa #{track_id} associada com {b['class']} (conf: {b['conf']:.2f}). Dist: {dist:.1f}px. Estado salvo.")
-                    break # associate first found bag and proceed
-
-    # Step 2: Lingering check inside the ROI
-    with infractions_lock:
-        with tracked_lock:
-            for p in persons:
-                track_id = p["track_id"]
+            p_state = tracked_persons[track_id]
+            p_state["last_seen"] = current_time
+            
+            # Update ROI lingering timer
+            if in_roi:
+                if p_state["first_in_roi_time"] is None:
+                    p_state["first_in_roi_time"] = current_time
+            else:
+                p_state["first_in_roi_time"] = None
                 
-                if p["in_roi"]:
-                    print(f"[AI] Pessoa #{track_id} está dentro da ROI.")
+            # Update standing still / lingering heuristic
+            p_state["position_history"].append((pcx, pcy, current_time))
+            # prune history older than 5 seconds
+            p_state["position_history"] = [pt for pt in p_state["position_history"] if current_time - pt[2] <= 5.0]
+            
+            # Find position ~3 seconds ago to check speed
+            three_sec_ago_pos = None
+            for pt in p_state["position_history"]:
+                if 2.5 <= (current_time - pt[2]) <= 4.0:
+                    three_sec_ago_pos = pt
+                    break
                     
-                # Check if this person carries a bag actively or in persisted history (last 12 seconds)
-                has_bag = False
-                bag_confidence = 0.0
-                bag_type = "bag"
+            if three_sec_ago_pos:
+                old_x, old_y, _ = three_sec_ago_pos
+                dist = math.sqrt((pcx - old_x) ** 2 + (pcy - old_y) ** 2)
                 
-                if track_id in tracked_persons_with_bags:
-                    info = tracked_persons_with_bags[track_id]
-                    time_since_bag = current_time - info["last_seen_with_bag"]
-                    if time_since_bag < BAG_PERSISTENCE_DURATION:
-                        has_bag = True
-                        bag_confidence = info["bag_conf"]
-                        bag_type = info["bag_type"]
-                        
-                if has_bag and p["in_roi"]:
-                    # Map raw COCO class to user-friendly label
-                    friendly_bag_type = "mochila/sacola"
-                    if bag_type == "cell phone":
-                        friendly_bag_type = "celular"
-                    elif bag_type in ["snowboard", "skateboard", "elephant", "surfboard"]:
-                        friendly_bag_type = f"mochila/sacola (detectada como {bag_type})"
-                    
-                    if track_id not in infractions:
-                        infractions[track_id] = {
-                            "start_time": current_time,
-                            "last_seen": current_time,
-                            "fired": False
-                        }
-                        print(f"[TRACK] Associação suspeita detectada no ROI: Pessoa #{track_id} portando {friendly_bag_type}. Iniciando timer...")
+                # If moved less than 45px in 3 seconds, they are standing still
+                if dist < 45.0:
+                    if p_state["standing_still_start"] is None:
+                        p_state["standing_still_start"] = current_time
                     else:
-                        infractions[track_id]["last_seen"] = current_time
-                        
-                    # Evaluate lingering threshold duration
-                    inf = infractions[track_id]
-                    duration = current_time - inf["start_time"]
-                    print(f"[TRACK] Pessoa #{track_id} na ROI com {friendly_bag_type} há {duration:.1f}s / {LINGERING_THRESHOLD}s")
-                    
-                    if duration >= LINGERING_THRESHOLD and not inf["fired"]:
-                        inf["fired"] = True
-                        conf_score = int((p["conf"] * 0.6 + bag_confidence * 0.4) * 100)
-                        details = f"Detecção contínua de Pessoa #{track_id} carregando {friendly_bag_type} dentro da área restrita (ROI) por {int(duration)} segundos."
-                        send_webhook_alert(
-                            title=f"Ocultamento / Permanência Suspeita ({friendly_bag_type.upper()})",
-                            details=details,
-                            severity="critical",
-                            trigger_type="CONCEALMENT_ROI",
-                            confidence=conf_score
-                        )
-
-        # Cleanup expired tracks (not seen inside ROI for more than 2 seconds)
-        expired = []
-        for tid, inf in infractions.items():
-            if current_time - inf["last_seen"] > 2.0:
-                expired.append(tid)
+                        p_state["accumulated_standing_still"] = current_time - p_state["standing_still_start"]
+                else:
+                    # Decay standing still time slowly or reset it
+                    p_state["standing_still_start"] = current_time # reset start timer to current time
+                    p_state["accumulated_standing_still"] = max(0.0, p_state["accumulated_standing_still"] - 1.0)
+            else:
+                p_state["standing_still_start"] = current_time
+            
+            p_state["last_position"] = (pcx, pcy)
+            
+            # Check active bag / object association and concealment
+            obj_associated_in_frame = False
+            for obj in objects:
+                ocx, ocy = obj["center"]
+                ox1, oy1, ow, oh = obj["bbox"]
+                obj_cls = obj["class"]
                 
-        for tid in expired:
-            print(f"[TRACK] Pessoa #{tid} saiu do ROI ou soltou o objeto. Removendo rastreamento.")
-            infractions.pop(tid)
+                # Distance between centers
+                dist = math.sqrt((pcx - ocx) ** 2 + (pcy - ocy) ** 2)
+                
+                # Proximity check
+                if dist < CONCEALMENT_DISTANCE_THRESHOLD:
+                    p_state["has_bag"] = True
+                    p_state["bag_conf"] = obj["conf"]
+                    p_state["bag_type"] = obj_cls
+                    p_state["bag_persistence_start"] = current_time
+                    obj_associated_in_frame = True
+                    
+                    # Concealment heuristic: small object overlapping person's torso region
+                    # e.g., cell phone, umbrella, etc.
+                    is_small_object = obj_cls in ["cell phone", "umbrella"]
+                    if is_small_object:
+                        # Check vertical overlap (waist/chest area)
+                        # person torso is roughly from y1 + 0.3*ph to y1 + 0.8*ph
+                        if (py1 + 0.3*ph <= ocy <= py1 + 0.85*ph) and (px1 <= ocx <= px1 + pw):
+                            if current_time - p_state["last_concealment_event_time"] > 4.0:
+                                p_state["concealment_events"] += 1
+                                p_state["last_concealment_event_time"] = current_time
+                                print(f"[AI-ALERT] Ação de ocultamento detectada: Pessoa #{track_id} com objeto '{obj_cls}' na região corporal.")
+            
+            # Handle bag persistence if no bag detected in this frame
+            if not obj_associated_in_frame:
+                if p_state["bag_persistence_start"] is not None:
+                    if current_time - p_state["bag_persistence_start"] > BAG_PERSISTENCE_DURATION:
+                        p_state["has_bag"] = False
+                        
+            # Handle Face Detection (Gaze at camera)
+            looking_at_camera = False
+            if frame is not None and face_cascade is not None:
+                try:
+                    # Crop upper 35% of person bbox
+                    head_y2 = py1 + int(ph * 0.35)
+                    if head_y2 > py1 and pw > 0 and head_y2 < H and px1 >= 0 and px1 + pw < W:
+                        head_crop = frame[py1:head_y2, px1:px1+pw]
+                        if head_crop.size > 0:
+                            gray = cv2.cvtColor(head_crop, cv2.COLOR_BGR2GRAY)
+                            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(15, 15))
+                            if len(faces) > 0:
+                                looking_at_camera = True
+                except Exception as ex:
+                    # Silent fail on CV2 frame errors
+                    pass
+            elif simulate and frame is None:
+                # Fallback to simulate look at camera in simulation mode
+                if track_id % 2 == 0 and p_state["accumulated_standing_still"] > 3.0:
+                    looking_at_camera = (int(current_time) % 3 == 0) # look every 3 seconds
+                    
+            if looking_at_camera:
+                if p_state["last_look_at_camera_time"] is None:
+                    p_state["last_look_at_camera_time"] = current_time
+                else:
+                    p_state["look_at_camera_duration"] += (current_time - p_state["last_look_at_camera_time"])
+                    p_state["last_look_at_camera_time"] = current_time
+            else:
+                p_state["last_look_at_camera_time"] = None
+
+            # Calculate Dynamic Risk Percentage (0% to 100%)
+            risk_percentage = 0
+            reasons = []
+            
+            # 1. Standing still (Loitering) in ROI
+            still_s = p_state["accumulated_standing_still"]
+            if still_s > 4.0:
+                still_risk = min(35, int((still_s / 15.0) * 35))
+                risk_percentage += still_risk
+                reasons.append(f"Parado na ROI por {int(still_s)}s (+{still_risk}%)")
+                
+            # 2. Carrying bag
+            if p_state["has_bag"]:
+                risk_percentage += 15
+                reasons.append("Portando sacola/mochila (+15%)")
+                
+            # 3. Gaze/Facing camera duration
+            cam_s = p_state["look_at_camera_duration"]
+            if cam_s > 3.0:
+                cam_risk = min(15, int((cam_s / 8.0) * 15))
+                risk_percentage += cam_risk
+                reasons.append(f"Olhando p/ câmera por {int(cam_s)}s (+{cam_risk}%)")
+                
+            # 4. Concealment action
+            if p_state["concealment_events"] > 0:
+                conceal_risk = min(35, p_state["concealment_events"] * 35)
+                risk_percentage += conceal_risk
+                reasons.append(f"Movimento de ocultação detectado (+{conceal_risk}%)")
+                
+            risk_percentage = min(risk_percentage, 100)
+            
+            # Logging Throttling to prevent console flooding (Log once every 2s per person, or on state/risk spike)
+            last_logged = p_state["last_logged"]
+            risk_diff = abs(risk_percentage - p_state["highest_risk_percentage"])
+            
+            if (current_time - last_logged > 2.0) or (risk_diff >= 15) or (risk_percentage >= 70 and "critical" not in p_state["alerts_fired"]):
+                p_state["last_logged"] = current_time
+                p_state["highest_risk_percentage"] = max(p_state["highest_risk_percentage"], risk_percentage)
+                
+                reasons_str = "; ".join(reasons) if reasons else "Nenhuma ação suspeita"
+                log_tag = "[AI-ALERT]" if risk_percentage >= 70 else ("[AI-WARNING]" if risk_percentage >= 40 else "[AI-MONITOR]")
+                print(f"{log_tag} Pessoa #{track_id}: Risco={risk_percentage}% | ROI={in_roi} | Parado={still_s:.1f}s | Bolsa={p_state['has_bag']} | Olhar Câmera={cam_s:.1f}s | Motivos: {reasons_str}")
+
+            # Send Alerts based on Risk thresholds
+            # Critical Alert: Risk >= 70%
+            if risk_percentage >= 70 and "critical" not in p_state["alerts_fired"]:
+                p_state["alerts_fired"].add("critical")
+                details = f"Detecção de Alto Risco de furto para a Pessoa #{track_id}. Motivos analisados pela IA: " + ", ".join(reasons)
+                send_webhook_alert(
+                    title=f"Alerta de Segurança - Risco Crítico ({risk_percentage}%)",
+                    details=details,
+                    severity="critical",
+                    trigger_type="CONCEALMENT_ROI",
+                    confidence=risk_percentage
+                )
+                
+            # Warning Alert: 40% <= Risk < 70%
+            elif 40 <= risk_percentage < 70 and "warning" not in p_state["alerts_fired"]:
+                p_state["alerts_fired"].add("warning")
+                details = f"Comportamento atípico detectado para a Pessoa #{track_id}. Fatores de risco: " + ", ".join(reasons)
+                send_webhook_alert(
+                    title=f"Aviso de Atenção - Risco Médio ({risk_percentage}%)",
+                    details=details,
+                    severity="warning",
+                    trigger_type="SUSPICIOUS_BEHAVIOR",
+                    confidence=risk_percentage
+                )
+
+        # Cleanup expired tracks (not seen for more than 4 seconds)
+        expired_ids = []
+        for tid, p_state in list(tracked_persons.items()):
+            if current_time - p_state["last_seen"] > 4.0:
+                expired_ids.append(tid)
+                
+        for tid in expired_ids:
+            print(f"[AI-INFO] Pessoa #{tid} saiu de cena. Finalizando rastreamento.")
+            tracked_persons.pop(tid, None)
 
 def ai_inference_loop(simulate=False):
     """Asynchronous background thread running YOLOv8 model inference silently on captured frames"""
@@ -514,7 +671,7 @@ def ai_inference_loop(simulate=False):
                 })
 
         # Process detections and infractions
-        process_detections_and_infractions(detections, W, H)
+        process_detections_and_infractions(detections, W, H, img_to_check, simulate)
         
         time.sleep(0.02) # Yield CPU
 
