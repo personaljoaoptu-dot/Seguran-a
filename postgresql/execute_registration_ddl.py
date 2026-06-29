@@ -1,10 +1,12 @@
 import pg8000
 import sys
+import os
 
 def execute_ddl():
     try:
         # Read the DDL script
-        with open('registration_schema.sql', 'r', encoding='utf-8') as f:
+        schema_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'registration_schema.sql')
+        with open(schema_path, 'r', encoding='utf-8') as f:
             ddl_sql = f.read()
 
         conn = pg8000.connect(

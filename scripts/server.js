@@ -20,9 +20,9 @@ const server = http.createServer((req, res) => {
     console.log(`${req.method} ${req.url}`);
     
     // Normalize and resolve file path
-    let filePath = '.' + req.url;
-    if (filePath === './') {
-        filePath = './index.html';
+    let filePath = path.join(__dirname, '../frontend', req.url);
+    if (req.url === '/') {
+        filePath = path.join(__dirname, '../frontend/index.html');
     }
     
     // Remove query strings or hashes

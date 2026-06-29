@@ -4,16 +4,16 @@ import sys
 
 def deploy():
     files_to_upload = [
-        "index.html",
-        "login.html",
-        "style.css",
-        "app_v2.js",
-        "app.js",
+        "frontend/index.html",
+        "frontend/login.html",
+        "frontend/style.css",
+        "frontend/app_v2.js",
+        "frontend/app.js",
         "server.py",
         "Dockerfile",
         "docker-compose.yml",
-        "aegiseye_auth_workflow.json",
-        "n8n_registration_workflow.json"
+        "n8n/aegiseye_auth_workflow.json",
+        "n8n/n8n_registration_workflow.json"
     ]
     
     remote_dir = "/root/aegiseye-dashboard"
@@ -26,17 +26,19 @@ def deploy():
         ssh.connect('144.91.121.55', username='root', password='2026@Miguel@2026', timeout=15)
         print("SSH Connected successfully!")
         
-        # Create remote directory
-        ssh.exec_command(f"mkdir -p {remote_dir}")
+        # Create remote directories
+        print("Creating remote directories...")
+        ssh.exec_command(f"mkdir -p {remote_dir}/frontend {remote_dir}/n8n")
         
         # 2. Establish SFTP connection
         print("Starting SFTP upload...")
         sftp = ssh.open_sftp()
         
         local_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(local_dir)
         
         for f in files_to_upload:
-            local_path = os.path.join(local_dir, f)
+            local_path = os.path.join(project_root, f)
             remote_path = os.path.join(remote_dir, f).replace("\\", "/")
             print(f"Uploading {f} -> {remote_path}...")
             sftp.put(local_path, remote_path)
@@ -69,10 +71,10 @@ def deploy():
         # 4. Integrate n8n workflows
         print("\nIntegrating DDL/Authentication/Registration workflows in n8n container...")
         n8n_cmds = [
-            f"docker cp {remote_dir}/aegiseye_auth_workflow.json n8n_app:/tmp/aegiseye_auth_workflow.json",
+            f"docker cp {remote_dir}/n8n/aegiseye_auth_workflow.json n8n_app:/tmp/aegiseye_auth_workflow.json",
             "docker exec -u node n8n_app n8n import:workflow --input=/tmp/aegiseye_auth_workflow.json",
             "docker exec -u root n8n_app rm -f /tmp/aegiseye_auth_workflow.json",
-            f"docker cp {remote_dir}/n8n_registration_workflow.json n8n_app:/tmp/n8n_registration_workflow.json",
+            f"docker cp {remote_dir}/n8n/n8n_registration_workflow.json n8n_app:/tmp/n8n_registration_workflow.json",
             "docker exec -u node n8n_app n8n import:workflow --input=/tmp/n8n_registration_workflow.json",
             "docker exec -u root n8n_app rm -f /tmp/n8n_registration_workflow.json"
         ]

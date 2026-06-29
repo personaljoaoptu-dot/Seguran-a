@@ -10,6 +10,9 @@ import uuid
 PORT = 8000
 
 class DashboardHandler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory="frontend", **kwargs)
+
     def end_headers(self):
         # Disable browser cache
         self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
