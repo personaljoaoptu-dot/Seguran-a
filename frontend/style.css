@@ -1544,3 +1544,112 @@ h1, h2, h3, h4, h5, h6 {
     display: flex;
     gap: 10px;
 }
+
+/* --- MAP LAYOUT EDITOR TOOLBAR STYLES --- */
+.map-editor-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(11, 19, 41, 0.6);
+    border: 1px solid var(--slate-850);
+    border-bottom: none;
+    padding: 12px 20px;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    backdrop-filter: blur(8px);
+    margin-bottom: 0;
+}
+
+.heatmap-canvas-container.editing {
+    border: 2px dashed var(--indigo-400);
+    box-shadow: 0 0 20px rgba(143, 67, 255, 0.25);
+}
+
+.editor-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: var(--slate-850);
+    border: 1px solid var(--slate-800);
+    color: var(--slate-400);
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.editor-btn:hover {
+    background-color: var(--slate-800);
+    border-color: var(--slate-700);
+    color: var(--white);
+}
+
+.editor-btn.active {
+    background: linear-gradient(135deg, var(--indigo-500) 0%, var(--indigo-400) 100%);
+    border-color: var(--indigo-400);
+    color: var(--white);
+    box-shadow: 0 0 15px rgba(143, 67, 255, 0.3);
+}
+
+.editor-btn.btn-success {
+    background: linear-gradient(135deg, var(--green-600) 0%, var(--green-500) 100%);
+    border-color: var(--green-500);
+    color: var(--slate-950);
+    font-weight: 700;
+}
+
+.editor-btn.btn-success:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 15px rgba(0, 230, 118, 0.3);
+}
+
+.editor-btn.btn-indigo {
+    background-color: var(--indigo-950);
+    border-color: rgba(143, 67, 255, 0.3);
+    color: var(--slate-200);
+}
+
+.editor-btn.btn-indigo:hover {
+    background-color: rgba(143, 67, 255, 0.15);
+    border-color: var(--indigo-400);
+    color: var(--white);
+}
+
+.editor-btn.btn-cyan {
+    background-color: var(--cyan-900);
+    border-color: rgba(0, 240, 255, 0.3);
+    color: var(--cyan-500);
+}
+
+.editor-btn.btn-cyan:hover {
+    background-color: rgba(0, 240, 255, 0.15);
+    border-color: var(--cyan-500);
+    color: var(--white);
+}
+
+.editor-btn.btn-danger {
+    background-color: var(--rose-950);
+    border-color: rgba(255, 0, 85, 0.3);
+    color: var(--rose-500);
+}
+
+.editor-btn.btn-danger:hover {
+    background-color: rgba(255, 0, 85, 0.15);
+    border-color: var(--rose-500);
+    color: var(--white);
+}
+
+.editor-btn.btn-slate-outline {
+    background-color: transparent;
+    border-color: var(--slate-800);
+    color: var(--slate-400);
+}
+
+.editor-btn.btn-slate-outline:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--slate-700);
+    color: var(--white);
+}

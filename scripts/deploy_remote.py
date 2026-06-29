@@ -6,6 +6,7 @@ def deploy():
     files_to_upload = [
         "frontend/index.html",
         "frontend/login.html",
+        "frontend/activate.html",
         "frontend/style.css",
         "frontend/app_v2.js",
         "frontend/app.js",
@@ -13,7 +14,12 @@ def deploy():
         "Dockerfile",
         "docker-compose.yml",
         "n8n/aegiseye_auth_workflow.json",
-        "n8n/n8n_registration_workflow.json"
+        "n8n/n8n_registration_workflow.json",
+        "n8n/n8n_activation_workflow.json",
+        "n8n/n8n_camera_config_workflow.json",
+        "n8n/n8n_alerts_workflow.json",
+        "import_cameras.py",
+        "cameras.json"
     ]
     
     remote_dir = "/root/aegiseye-dashboard"
@@ -76,7 +82,22 @@ def deploy():
             "docker exec -u root n8n_app rm -f /tmp/aegiseye_auth_workflow.json",
             f"docker cp {remote_dir}/n8n/n8n_registration_workflow.json n8n_app:/tmp/n8n_registration_workflow.json",
             "docker exec -u node n8n_app n8n import:workflow --input=/tmp/n8n_registration_workflow.json",
-            "docker exec -u root n8n_app rm -f /tmp/n8n_registration_workflow.json"
+            "docker exec -u root n8n_app rm -f /tmp/n8n_registration_workflow.json",
+            f"docker cp {remote_dir}/n8n/n8n_activation_workflow.json n8n_app:/tmp/n8n_activation_workflow.json",
+            "docker exec -u node n8n_app n8n import:workflow --input=/tmp/n8n_activation_workflow.json",
+            "docker exec -u root n8n_app rm -f /tmp/n8n_activation_workflow.json",
+            f"docker cp {remote_dir}/n8n/n8n_camera_config_workflow.json n8n_app:/tmp/n8n_camera_config_workflow.json",
+            "docker exec -u node n8n_app n8n import:workflow --input=/tmp/n8n_camera_config_workflow.json",
+            "docker exec -u root n8n_app rm -f /tmp/n8n_camera_config_workflow.json",
+            f"docker cp {remote_dir}/n8n/n8n_alerts_workflow.json n8n_app:/tmp/n8n_alerts_workflow.json",
+            "docker exec -u node n8n_app n8n import:workflow --input=/tmp/n8n_alerts_workflow.json",
+            "docker exec -u root n8n_app rm -f /tmp/n8n_alerts_workflow.json",
+            "docker exec -u node n8n_app n8n publish:workflow --id=8c4ab76c-30c1-419b-a010-91a5e55209f8",
+            "docker exec -u node n8n_app n8n publish:workflow --id=e4f8a6b1-cdbe-4712-a1f9-d892a01f30f5",
+            "docker exec -u node n8n_app n8n publish:workflow --id=f1f2f3f4-5678-4c3d-b2a1-098765432109",
+            "docker exec -u node n8n_app n8n publish:workflow --id=9c8d7e6f-5a4b-3c2d-1e0f-9876543210fe",
+            "docker exec -u node n8n_app n8n publish:workflow --id=e5f6a7b8-cdbe-4712-a1f9-d892a01f30f6",
+            "docker restart n8n_app"
         ]
         
         for cmd in n8n_cmds:

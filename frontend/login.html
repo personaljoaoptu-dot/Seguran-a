@@ -516,7 +516,8 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    successBanner.innerHTML = `<strong>Cadastro Concluído!</strong><br>${data.message}<br><small>User ID: ${data.data.usuario_id}<br>Tenant ID: ${data.data.empresa_id}</small>`;
+                    const activationUrl = `${window.location.origin}/activate.html?token=${data.data.token}`;
+                    successBanner.innerHTML = `<strong>Cadastro Efetuado!</strong><br>${data.message}<br><br>👉 Para fins de simulação e teste, clique no link abaixo para ativar a conta e definir a senha:<br><br><a href="${activationUrl}" style="color: var(--cyan-500); font-weight: 700; text-decoration: underline;" target="_blank">Ativar Conta & Definir Senha</a>`;
                     successBanner.style.display = 'block';
                     registerForm.reset();
                 } else {

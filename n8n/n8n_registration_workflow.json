@@ -71,11 +71,11 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=INSERT INTO usuarios (nome, email, whatsapp, cpf) VALUES ('{{ $('Validate Data').item.json.data.nome }}', '{{ $('Validate Data').item.json.data.email }}', '{{ $('Validate Data').item.json.data.whatsapp }}', '{{ $('Validate Data').item.json.data.cpf }}') RETURNING id;",
+        "query": "=DELETE FROM activation_tokens WHERE usuario_id IN (\n    SELECT id FROM usuarios \n    WHERE (email = '{{ $('Validate Data').first().json.data.email }}' OR cpf = '{{ $('Validate Data').first().json.data.cpf }}')\n    AND NOT EXISTS (SELECT 1 FROM users WHERE email = usuarios.email)\n);\nDELETE FROM empresas WHERE usuario_id IN (\n    SELECT id FROM usuarios \n    WHERE (email = '{{ $('Validate Data').first().json.data.email }}' OR cpf = '{{ $('Validate Data').first().json.data.cpf }}')\n    AND NOT EXISTS (SELECT 1 FROM users WHERE email = usuarios.email)\n);\nDELETE FROM usuarios \nWHERE (email = '{{ $('Validate Data').first().json.data.email }}' OR cpf = '{{ $('Validate Data').first().json.data.cpf }}')\nAND NOT EXISTS (SELECT 1 FROM users WHERE email = usuarios.email);\n\nSELECT email FROM users WHERE email = '{{ $('Validate Data').first().json.data.email }}' LIMIT 1;",
         "options": {}
       },
-      "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
-      "name": "Insert Usuario",
+      "id": "q1w2e3r4-t5y6-u7i8-o9p0-a1s2d3f4g5h6",
+      "name": "Query Existing User",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.2,
       "position": [
@@ -91,8 +91,66 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.email }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "z1x2c3v4-b5n6-m7k8-l9o0-p1q2w3e4r5t6",
+      "name": "Check Duplicate Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        900,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, message: 'Este e-mail já está cadastrado e ativo no sistema! Por favor faça login.' } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "y1u2i3o4-p5a6-s7d8-f9g0-h1j2k3l4z5x6",
+      "name": "Respond Duplicate Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        240
+      ]
+    },
+    {
+      "parameters": {
         "operation": "executeQuery",
-        "query": "=INSERT INTO empresas (usuario_id, nome_empresa) VALUES ('{{ $json.id }}', '{{ $('Validate Data').item.json.data.nome_empresa }}') RETURNING id;",
+        "query": "=INSERT INTO usuarios (nome, email, whatsapp, cpf) VALUES ('{{ $('Validate Data').first().json.data.nome }}', '{{ $('Validate Data').first().json.data.email }}', '{{ $('Validate Data').first().json.data.whatsapp }}', '{{ $('Validate Data').first().json.data.cpf }}') RETURNING id;",
+        "options": {}
+      },
+      "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Insert Usuario",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        480
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO empresas (usuario_id, nome_empresa) VALUES ('{{ $json.id }}', '{{ $('Validate Data').first().json.data.nome_empresa }}') RETURNING id;",
         "options": {}
       },
       "id": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f",
@@ -100,8 +158,94 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.2,
       "position": [
-        900,
-        360
+        1300,
+        480
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO activation_tokens (usuario_id, token, expires_at) VALUES ('{{ $('Insert Usuario').first().json.id }}', uuid_generate_v4(), now() + interval '24 hours') RETURNING token;",
+        "options": {}
+      },
+      "id": "e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b",
+      "name": "Insert Token",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        1500,
+        480
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "AegisEye AI <segurancasaas@gmail.com>",
+        "toEmail": "={{ $('Validate Data').first().json.data.email }}",
+        "subject": "🔑 Ative sua conta no painel AegisEye AI",
+        "html": "=<div style=\"font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; background-color: #020617; padding: 40px 20px; border-radius: 16px; border: 1px solid #1e293b;\">\n  <div style=\"background-color: #0f172a; border-radius: 12px; overflow: hidden; padding: 30px; border: 1px solid rgba(255,255,255,0.06);\">\n    <div style=\"text-align: center; margin-bottom: 30px;\">\n      <div style=\"display: inline-block; padding: 12px; background: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%); border-radius: 12px; color: #ffffff; font-weight: bold; font-size: 22px; box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);\">\n        AegisEye AI\n      </div>\n    </div>\n    <div style=\"color: #e2e8f0;\">\n      <h2 style=\"font-family: 'Outfit', sans-serif; color: #ffffff; font-size: 22px; margin-bottom: 20px; text-align: center; font-weight: 700;\">Ative sua Conta de Monitoramento! 🚀</h2>\n      <p style=\"font-size: 15px; line-height: 1.7; margin-bottom: 20px; color: #94a3b8;\">\n        Olá, <strong>{{ $('Validate Data').first().json.data.nome }}</strong>,\n      </p>\n      <p style=\"font-size: 15px; line-height: 1.7; margin-bottom: 20px; color: #94a3b8;\">\n        Sua empresa <strong>{{ $('Validate Data').first().json.data.nome_empresa }}</strong> foi pré-cadastrada com sucesso no nosso sistema inteligente de segurança por IA.\n      </p>\n      <p style=\"font-size: 15px; line-height: 1.7; margin-bottom: 25px; color: #94a3b8;\">\n        Para concluir o cadastro, ativar sua conta e definir sua senha pessoal de acesso, por favor clique no botão de ativação abaixo:\n      </p>\n      \n      <div style=\"text-align: center; margin: 30px 0;\">\n        <a href=\"http://144.91.121.55:8000/activate.html?token={{ $json.token }}\" target=\"_blank\" style=\"background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: #ffffff; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 700; font-size: 15px; display: inline-block; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);\">\n          Ativar Conta & Definir Senha\n        </a>\n      </div>\n      \n      <p style=\"font-size: 13px; line-height: 1.6; color: #64748b; text-align: center; margin-top: 30px; border-top: 1px solid #1e293b; padding-top: 20px;\">\n        Este link de ativação expirará em 24 horas por motivos de segurança.<br>\n        Se você não solicitou este cadastro, desconsidere este e-mail.\n      </p>\n    </div>\n  </div>\n  <div style=\"text-align: center; padding-top: 20px;\">\n    <p style=\"color: #475569; font-size: 12px;\">\n      &copy; 2026 AegisEye AI Systems. Todos os direitos reservados.\n    </p>\n  </div>\n</div>",
+        "options": {}
+      },
+      "id": "fbe833d1-7e4f-4650-b183-de4b9e1060b4",
+      "name": "Send Activation Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1700,
+        480
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "LXgw91EssOGeetUz",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.error }}",
+              "operation": "isEmpty"
+            }
+          ]
+        }
+      },
+      "id": "if-email-sent-successfully-12345",
+      "name": "Check Email Sent",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1900,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=DELETE FROM activation_tokens WHERE token = '{{ $('Insert Token').first().json.token }}';\nDELETE FROM empresas WHERE usuario_id = '{{ $('Insert Usuario').first().json.id }}';\nDELETE FROM usuarios WHERE id = '{{ $('Insert Usuario').first().json.id }}';",
+        "options": {}
+      },
+      "id": "rollback-registration-db-node-999",
+      "name": "Rollback Registration",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        2100,
+        600
       ],
       "credentials": {
         "postgres": {
@@ -113,7 +257,24 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { success: true, message: 'Cadastro efetuado com sucesso!', data: { usuario_id: $('Insert Usuario').item.json.id, empresa_id: $json.id } } }}",
+        "responseBody": "={{ { success: false, message: 'Falha no envio de e-mail de ativação. Por favor verifique seu SMTP. Erro: ' + $('Send Activation Email').first().json.error } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "respond-email-error-node-888",
+      "name": "Respond Email Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2300,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: 'Cadastro efetuado com sucesso!', data: { usuario_id: $('Insert Usuario').first().json.id, empresa_id: $('Insert Empresa').first().json.id, token: $('Insert Token').first().json.token } } }}",
         "options": {
           "responseCode": 200
         }
@@ -123,7 +284,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        1100,
+        2100,
         360
       ]
     }
@@ -155,7 +316,7 @@
       "main": [
         [
           {
-            "node": "Insert Usuario",
+            "node": "Query Existing User",
             "type": "main",
             "index": 0
           }
@@ -163,6 +324,35 @@
         [
           {
             "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Existing User": {
+      "main": [
+        [
+          {
+            "node": "Check Duplicate Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Duplicate Exists": {
+      "main": [
+        [
+          {
+            "node": "Respond Duplicate Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insert Usuario",
             "type": "main",
             "index": 0
           }
@@ -184,7 +374,58 @@
       "main": [
         [
           {
+            "node": "Insert Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Token": {
+      "main": [
+        [
+          {
+            "node": "Send Activation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Activation Email": {
+      "main": [
+        [
+          {
+            "node": "Check Email Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Email Sent": {
+      "main": [
+        [
+          {
             "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rollback Registration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rollback Registration": {
+      "main": [
+        [
+          {
+            "node": "Respond Email Error",
             "type": "main",
             "index": 0
           }

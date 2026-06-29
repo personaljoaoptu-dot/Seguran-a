@@ -1,0 +1,85 @@
+{
+  "id": "e5f6a7b8-cdbe-4712-a1f9-d892a01f30f6",
+  "name": "AegisEye Alerts Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aegiseye-alerts",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e2c3664d-5827-4c40-bd88-0679612c6a0e",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        180,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO public.alertas (tenant_id, camera_id, camera_name, severity, title, details, confidence, trigger_type) VALUES ('{{ $json.body.tenant_id }}', {{ $json.body.camera_id ? \"'\" + $json.body.camera_id + \"'\" : 'NULL' }}, '{{ $json.body.camera_name }}', '{{ $json.body.severity }}', '{{ $json.body.title }}', '{{ $json.body.details }}', {{ $json.body.confidence }}, '{{ $json.body.trigger_type }}') RETURNING id;",
+        "options": {}
+      },
+      "id": "c1ffae40-e2b2-4d2c-8068-07e32402127e",
+      "name": "PostgreSQL",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        400,
+        240
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "id": "d0e1b2c3-4d5e-6f7g-8h9i-0j1k2l3m4n5p",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        620,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "PostgreSQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": true
+}

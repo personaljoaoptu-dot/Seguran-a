@@ -1,0 +1,370 @@
+{
+  "id": "f1f2f3f4-5678-4c3d-b2a1-098765432109",
+  "name": "IA Security - Ativação de Clientes",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "verify-token",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1a1a1a1-a1a1-a1a1-a1a1-a1a1a1a1a1a1",
+      "name": "webhook_verify",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        100,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT u.email, e.nome_empresa FROM activation_tokens t JOIN usuarios u ON t.usuario_id = u.id JOIN empresas e ON u.id = e.usuario_id WHERE t.token = '{{ $json.query.token }}' AND t.used = false AND t.expires_at > now();",
+        "options": {}
+      },
+      "id": "b2b2b2b2-b2b2-b2b2-b2b2-b2b2b2b2b2b2",
+      "name": "Query Token",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        300,
+        150
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.email }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "c3c3c3c3-c3c3-c3c3-c3c3-c3c3c3c3c3c3",
+      "name": "Check Token Exists",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        500,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, email: $json.email, nome_empresa: $json.nome_empresa } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "d4d4d4d4-d4d4-d4d4-d4d4-d4d4d4d4d4d4",
+      "name": "Respond Verify Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        700,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, message: 'Link de ativação inválido, expirado ou já utilizado.' } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "e5e5e5e5-e5e5-e5e5-e5e5-e5e5e5e5e5e5",
+      "name": "Respond Verify Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        700,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "activate-user",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f6f6f6f6-f6f6-f6f6-f6f6-f6f6f6f6f6f6",
+      "name": "webhook_activate",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        100,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT t.usuario_id, u.nome, u.email, e.nome_empresa FROM activation_tokens t JOIN usuarios u ON t.usuario_id = u.id JOIN empresas e ON u.id = e.usuario_id WHERE t.token = '{{ $json.body.token }}' AND t.used = false AND t.expires_at > now();",
+        "options": {}
+      },
+      "id": "g7g7g7g7-g7g7-g7g7-g7g7-g7g7-g7g7-g7g7g7g7",
+      "name": "Get Details",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        300,
+        450
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.email }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "h8h8h8h8-h8h8-h8h8-h8h8-h8h8-h8h8-h8h8h8h8",
+      "name": "Check Activation Valid",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        500,
+        450
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, message: 'Link de ativação inválido ou expirado.' } }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "i9i9i9i9-i9i9-i9i9-i9i9-i9i9-i9i9-i9i9i9i9",
+      "name": "Respond Activation Invalid",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        700,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO tenants (name) VALUES ('{{ $('Get Details').item.json.nome_empresa }}') RETURNING id;",
+        "options": {}
+      },
+      "id": "j0j0j0j0-j0j0-j0j0-j0j0-j0j0-j0j0-j0j0j0j0",
+      "name": "Insert Tenant",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        700,
+        380
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=INSERT INTO users (tenant_id, name, email, password_hash) VALUES ('{{ $json.id }}', '{{ $('Get Details').item.json.nome }}', '{{ $('Get Details').item.json.email }}', '{{ $('webhook_activate').item.json.body.password_hash }}') RETURNING id;",
+        "options": {}
+      },
+      "id": "k1k1k1k1-k1k1-k1k1-k1k1-k1k1-k1k1-k1k1k1k1",
+      "name": "Insert User",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        380
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE activation_tokens SET used = true WHERE token = '{{ $('webhook_activate').item.json.body.token }}';",
+        "options": {}
+      },
+      "id": "l2l2l2l2-l2l2-l2l2-l2l2-l2l2-l2l2-l2l2l2l2",
+      "name": "Mark Token Used",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.2,
+      "position": [
+        1100,
+        380
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "c5ef944b-4b10-4ff5-b9f0-c5ef54ab6903",
+          "name": "PostgreSQL production"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: 'Conta ativada com sucesso! Você já pode fazer login.' } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "m3m3m3m3-m3m3-m3m3-m3m3-m3m3-m3m3-m3m3m3m3",
+      "name": "Respond Activation Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1300,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "webhook_verify": {
+      "main": [
+        [
+          {
+            "node": "Query Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Token": {
+      "main": [
+        [
+          {
+            "node": "Check Token Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Token Exists": {
+      "main": [
+        [
+          {
+            "node": "Respond Verify Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Verify Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "webhook_activate": {
+      "main": [
+        [
+          {
+            "node": "Get Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Details": {
+      "main": [
+        [
+          {
+            "node": "Check Activation Valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Activation Valid": {
+      "main": [
+        [
+          {
+            "node": "Insert Tenant",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Activation Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Tenant": {
+      "main": [
+        [
+          {
+            "node": "Insert User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert User": {
+      "main": [
+        [
+          {
+            "node": "Mark Token Used",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Token Used": {
+      "main": [
+        [
+          {
+            "node": "Respond Activation Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": true
+}

@@ -29,6 +29,12 @@ def setup():
         )
         safe_print("Registration activation", stdout.read(), stderr.read())
         
+        # 3. Activate Activation Workflow
+        stdin, stdout, stderr = ssh.exec_command(
+            "docker exec -u node n8n_app n8n update:workflow --active=true --id=f1f2f3f4-5678-4c3d-b2a1-098765432109"
+        )
+        safe_print("Activation workflow activation", stdout.read(), stderr.read())
+        
         # 3. Restart n8n
         print("Restarting n8n container...")
         stdin, stdout, stderr = ssh.exec_command("docker restart n8n_app")
