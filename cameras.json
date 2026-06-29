@@ -1,0 +1,32 @@
+[
+  {
+    "nome": "Corredor 1 (Mercearia)",
+    "url_rtsp": "rtsp://192.168.1.100/ch1",
+    "localizacao": "Ocultamento / Suspeita"
+  },
+  {
+    "nome": "Corredor 2 (Biscoitos)",
+    "url_rtsp": "rtsp://192.168.1.100/ch2",
+    "localizacao": "Ocultamento / Fluxo de Pessoas"
+  },
+  {
+    "nome": "Bebidas Finas",
+    "url_rtsp": "rtsp://192.168.1.100/ch3",
+    "localizacao": "Permanência Alta / Ocultamento"
+  },
+  {
+    "nome": "Caixa 1",
+    "url_rtsp": "rtsp://192.168.1.100/ch4",
+    "localizacao": "Desistência / Fila Larga"
+  },
+  {
+    "nome": "Caixa 2 (Autoatendimento)",
+    "url_rtsp": "rtsp://192.168.1.100/ch5",
+    "localizacao": "Checkout Não Escaneado"
+  },
+  {
+    "nome": "Câmera Yoosee",
+    "url_rtsp": "rtsp://admin:20011998j@192.168.1.14:554/onvif1",
+    "localizacao": "Área de Risco / Entrada"
+  }
+]

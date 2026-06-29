@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AegisEye Desktop Extension</title>
+    <style>
+        :root {
+            --bg-base: #0b0f19;
+            --bg-surface: #0f172a;
+            --bg-card: #1e293b;
+            --border-glass: 1px solid rgba(255, 255, 255, 0.08);
+            --color-primary: #00f0ff;
+            --color-text: #f1f5f9;
+            --color-muted: #94a3b8;
+            --color-green: #10b981;
+            --color-red: #ef4444;
+            --color-amber: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--color-text);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* --- LOGIN SCREEN --- */
+        #login-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--bg-base);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.3s ease;
+        }
+
+        .login-card {
+            background-color: var(--bg-surface);
+            border: var(--border-glass);
+            border-radius: 12px;
+            width: 420px;
+            padding: 40px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        .login-logo {
+            font-size: 24px;
+            font-weight: 800;
+            color: var(--color-primary);
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .login-subtitle {
+            font-size: 13px;
+            color: var(--color-muted);
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            text-align: left;
+            margin-bottom: 25px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--color-text);
+            margin-bottom: 8px;
+        }
+
+        .form-input {
+            width: 100%;
+            background-color: var(--bg-card);
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-size: 14px;
+            color: #ffffff;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: var(--color-primary);
+        }
+
+        .btn-connect {
+            width: 100%;
+            background-color: #3b82f6;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 14px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-connect:hover {
+            background-color: #2563eb;
+        }
+
+        /* --- APP MAIN LAYOUT --- */
+        #app-layout {
+            display: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background-color: var(--bg-surface);
+            width: 240px;
+            height: 100%;
+            border-right: var(--border-glass);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--color-primary);
+            padding: 30px 24px;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-profile {
+            background-color: var(--bg-card);
+            margin: 0 15px 30px 15px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #e2e8f0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .menu-item {
+            width: 100%;
+            background: none;
+            border: none;
+            color: var(--color-muted);
+            padding: 14px 24px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            outline: none;
+        }
+
+        .menu-item:hover, .menu-item.active {
+            color: #ffffff;
+            background-color: var(--bg-card);
+        }
+
+        .btn-disconnect {
+            margin-top: auto;
+            color: var(--color-red);
+            font-style: italic;
+        }
+
+        /* Content Frame */
+        .content {
+            flex-grow: 1;
+            padding: 35px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tab-content {
+            display: none;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        .tab-title {
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 25px;
+        }
+
+        /* --- DASHBOARD TAB --- */
+        .cards-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background-color: var(--bg-surface);
+            border: var(--border-glass);
+            border-radius: 10px;
+            padding: 24px;
+            flex: 1;
+            text-align: center;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-title {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--color-muted);
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .card-value {
+            font-size: 28px;
+            font-weight: 800;
+        }
+
+        .val-red { color: var(--color-red); }
+        .val-green { color: var(--color-green); }
+        .val-blue { color: var(--color-primary); }
+
+        .quick-actions-panel {
+            background-color: var(--bg-surface);
+            border: var(--border-glass);
+            border-radius: 10px;
+            padding: 30px;
+        }
+
+        .actions-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .actions-desc {
+            font-size: 13px;
+            color: var(--color-muted);
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .btn-trigger {
+            background-color: var(--color-red);
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 24px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-trigger:hover {
+            background-color: #dc2626;
+        }
+
+        /* --- CAMERAS TAB --- */
+        .camera-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .camera-row {
+            background-color: var(--bg-surface);
+            border: var(--border-glass);
+            border-radius: 8px;
+            padding: 18px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .camera-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--color-green);
+        }
+
+        .status-dot.warning {
+            background-color: var(--color-amber);
+        }
+
+        .camera-details {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .camera-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .camera-sub {
+            font-size: 11px;
+            color: var(--color-muted);
+        }
+
+        .camera-badge {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--color-primary);
+            background-color: var(--bg-card);
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+
+        /* --- ALERTS TAB --- */
+        .alerts-table {
+            background-color: var(--bg-surface);
+            border: var(--border-glass);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .table-header {
+            background-color: var(--bg-card);
+            padding: 12px 20px;
+            display: flex;
+            font-size: 11px;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .table-row {
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 13px;
+        }
+
+        .col-time { width: 80px; flex-shrink: 0; }
+        .col-sev { width: 120px; flex-shrink: 0; }
+        .col-desc { flex-grow: 1; padding: 0 15px; }
+        .col-conf { width: 80px; flex-shrink: 0; text-align: right; }
+
+        .badge-sev {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background-color: var(--bg-card);
+            text-align: center;
+            display: inline-block;
+            width: 80px;
+        }
+
+        .badge-sev.critical { color: var(--color-red); }
+        .badge-sev.warning { color: var(--color-amber); }
+        .badge-sev.medium { color: #3b82f6; }
+        
+        .conf-green { color: var(--color-green); font-weight: 700; }
+    </style>
+</head>
+<body>
+
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen">
+        <div class="login-card">
+            <div class="login-logo">AegisEye AI</div>
+            <div class="login-subtitle">Desktop Prevention Monitor</div>
+            
+            <div class="form-group">
+                <label class="form-label" for="email">E-mail do Perfil</label>
+                <input class="form-input" type="email" id="email" value="personal.joaoptu@gmail.com">
+            </div>
+            
+            <button class="btn-connect" onclick="connectProfile()">Conectar e Sincronizar</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP LAYOUT -->
+    <div id="app-layout">
+        <!-- Sidebar Navigation -->
+        <div class="sidebar">
+            <div class="sidebar-brand">AegisEye Desktop</div>
+            <div class="sidebar-profile" id="user-badge">Sincronizando...</div>
+            
+            <button class="menu-item active" onclick="showTab('dashboard', this)">📊 Painel de Controle</button>
+            <button class="menu-item" onclick="showTab('live', this)">📺 Monitoramento Live</button>
+            <button class="menu-item" onclick="showTab('cameras', this)">📹 Minhas Câmeras</button>
+            <button class="menu-item" onclick="showTab('alerts', this)">🔔 Alertas e Notificações</button>
+            
+            <button class="menu-item btn-disconnect" onclick="disconnect()">🔌 Desconectar</button>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content">
+            
+            <!-- Dashboard Tab -->
+            <div id="tab-dashboard" class="tab-content active">
+                <div class="tab-title">Resumo Geral da Operação</div>
+                <div class="cards-row">
+                    <div class="card">
+                        <div class="card-title">ALERTAS HOJE</div>
+                        <div class="card-value val-red" id="stat-alerts-count">0</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">PRECISÃO DA IA</div>
+                        <div class="card-value val-green">92.4%</div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">PERDAS EVITADAS</div>
+                        <div class="card-value val-blue">R$ 0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cameras Tab -->
+            <div id="tab-cameras" class="tab-content">
+                <div class="tab-title">Câmeras Registradas no Edge Node</div>
+                <div class="camera-list" id="camera-list-container">
+                    <!-- Dynamic Rows Loaded Here -->
+                </div>
+            </div>
+
+            <!-- Live Monitor Tab -->
+            <div id="tab-live" class="tab-content">
+                <div class="tab-title">Monitoramento de Câmera em Tempo Real</div>
+                <div style="margin-bottom: 20px;">
+                    <span class="form-label" style="display: inline-block; margin-right: 10px;">Selecionar Canal de Câmera:</span>
+                    <select id="live-cam-select" class="form-input" style="width: 250px; display: inline-block; padding: 8px 12px;" onchange="changeLiveCamera(this.value)">
+                        <!-- Dynamic options -->
+                    </select>
+                </div>
+                <div class="quick-actions-panel" style="display: flex; justify-content: center; align-items: center; min-height: 350px; padding: 10px; background-color: #020617; border-radius: 8px; border: var(--border-glass);">
+                    <img id="desktop-video-player" src="" style="max-width: 100%; max-height: 330px; border-radius: 6px; display: none;" />
+                    <div id="desktop-video-placeholder" style="color: var(--color-muted); font-style: italic;">Selecione uma câmera conectada para ver a imagem.</div>
+                </div>
+            </div>
+
+            <!-- Alerts Tab -->
+            <div id="tab-alerts" class="tab-content">
+                <div class="tab-title">Histórico de Alertas (Tempo Real)</div>
+                <div class="alerts-table">
+                    <div class="table-header">
+                        <div class="col-time">HORA</div>
+                        <div class="col-sev">SEVERIDADE</div>
+                        <div class="col-desc">DETECÇÃO / COMPORTAMENTO</div>
+                        <div class="col-conf">CONF.</div>
+                    </div>
+                    <div id="alerts-rows-container">
+                        <!-- Dynamic Rows -->
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Store Application State
+        let state = {
+            tenantName: "",
+            tenantId: "",
+            cameras: [],
+            alerts: [],
+            shownAlertIds: new Set(),
+            firstLoad: true
+        };
+
+        // Switch Tabs
+        function showTab(tabId, el) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.menu-item').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById('tab-' + tabId).classList.add('active');
+            if (el) el.classList.add('active');
+        }
+
+        // Login Handler (Calls PyWebView Bridge)
+        function connectProfile() {
+            const email = document.getElementById('email').value.trim();
+            if (!email) {
+                alert("Por favor, informe seu e-mail.");
+                return;
+            }
+
+            // Call Python function exposed via pywebview
+            window.pywebview.api.login(email).then(response => {
+                const res = JSON.parse(response);
+                if (res.success) {
+                    state.tenantName = res.tenant_name;
+                    state.tenantId = res.tenant_id;
+                    state.cameras = res.cameras;
+                    state.alerts = [];
+                    state.shownAlertIds.clear();
+                    state.firstLoad = true;
+
+                    // Update UI details
+                    document.getElementById('user-badge').innerText = "👤 " + state.tenantName;
+                    renderCameras();
+                    populateLiveCamSelect();
+                    
+                    // Show app layout, hide login
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('app-layout').style.display = 'flex';
+
+                    // Start dynamic alerts and cameras sync
+                    fetchDatabaseAlerts();
+                    fetchDatabaseCameras();
+                    if (window.alertsInterval) clearInterval(window.alertsInterval);
+                    window.alertsInterval = setInterval(() => {
+                        fetchDatabaseAlerts();
+                        fetchDatabaseCameras();
+                    }, 5000);
+                } else {
+                    alert("Erro: " + res.error);
+                }
+            }).catch(err => {
+                alert("Erro de comunicação com o servidor: " + err);
+            });
+        }
+
+        // Fetch Real-time Alerts from SQLite/Postgre via Python bridge
+        function fetchDatabaseAlerts() {
+            if (!state.tenantId) return;
+
+            window.pywebview.api.get_alerts(state.tenantId).then(response => {
+                const res = JSON.parse(response);
+                if (res.success) {
+                    const newAlerts = res.alerts;
+
+                    newAlerts.forEach(alert => {
+                        if (!state.shownAlertIds.has(alert.id)) {
+                            state.shownAlertIds.add(alert.id);
+
+                            // Trigger Windows Toast Notification for new critical incidents
+                            if (!state.firstLoad && (alert.severity === 'critical' || alert.severity === 'warning')) {
+                                window.pywebview.api.trigger_notification(
+                                    `🚨 ALERTA CRÍTICO - AegisEye`,
+                                    `Câmera: ${alert.camera}. ${alert.title} (${alert.conf} de certeza).`
+                                );
+                            }
+                        }
+                    });
+
+                    state.firstLoad = false;
+                    state.alerts = newAlerts;
+                    renderAlerts();
+                }
+            }).catch(err => {
+                console.error("Erro de sincronização de alertas:", err);
+            });
+        }
+
+        // Fetch Real-time Cameras from SQLite/Postgre via Python bridge
+        function fetchDatabaseCameras() {
+            if (!state.tenantId) return;
+
+            window.pywebview.api.get_cameras(state.tenantId).then(response => {
+                const res = JSON.parse(response);
+                if (res.success) {
+                    const select = document.getElementById('live-cam-select');
+                    const oldActiveRtsp = select.value !== "" && state.cameras[select.value] ? state.cameras[select.value].rtsp : null;
+                    
+                    state.cameras = res.cameras;
+                    renderCameras();
+                    populateLiveCamSelect();
+                    
+                    if (oldActiveRtsp) {
+                        const newIdx = state.cameras.findIndex(c => c.rtsp === oldActiveRtsp);
+                        if (newIdx !== -1) {
+                            select.value = newIdx;
+                        }
+                    }
+                }
+            }).catch(err => {
+                console.error("Erro de sincronização de câmeras:", err);
+            });
+        }
+
+        // Disconnect Handler
+        function disconnect() {
+            if (window.alertsInterval) clearInterval(window.alertsInterval);
+            document.getElementById('login-screen').style.display = 'flex';
+            document.getElementById('app-layout').style.display = 'none';
+        }
+
+        // Render Cameras HTML dynamically
+        function renderCameras() {
+            const container = document.getElementById('camera-list-container');
+            container.innerHTML = '';
+            
+            if (state.cameras.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: var(--color-muted); padding: 40px; font-style: italic;">Nenhuma câmera cadastrada neste perfil.</div>';
+                return;
+            }
+
+            state.cameras.forEach(cam => {
+                const indicatorClass = cam.status === 'online' ? '' : 'warning';
+                const row = document.createElement('div');
+                row.className = 'camera-row';
+                row.innerHTML = `
+                    <div class="camera-left">
+                        <div class="status-dot ${indicatorClass}"></div>
+                        <div class="camera-details">
+                            <div class="camera-name">${cam.name.toUpperCase()}</div>
+                            <div class="camera-sub">IP/RTSP: ${cam.rtsp}</div>
+                            <div class="camera-sub">Dispositivo: ${cam.device}</div>
+                        </div>
+                    </div>
+                    <div class="camera-badge">IA ATIVA</div>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        // Render Alerts HTML dynamically
+        function renderAlerts() {
+            const container = document.getElementById('alerts-rows-container');
+            container.innerHTML = '';
+            
+            if (state.alerts.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: var(--color-muted); padding: 40px; font-style: italic;">Nenhum alerta registrado hoje.</div>';
+                document.getElementById('stat-alerts-count').innerText = "0";
+                return;
+            }
+
+            state.alerts.forEach(alert => {
+                const row = document.createElement('div');
+                row.className = 'table-row';
+                row.innerHTML = `
+                    <div class="col-time">${alert.time}</div>
+                    <div class="col-sev"><span class="badge-sev ${alert.severity}">${alert.label}</span></div>
+                    <div class="col-desc">${alert.title} (${alert.camera})</div>
+                    <div class="col-conf conf-green">${alert.conf}</div>
+                `;
+                container.appendChild(row);
+            });
+
+            // Update stats value
+            document.getElementById('stat-alerts-count').innerText = state.alerts.length;
+        }
+
+
+
+        // Populate Live Cam Dropdown
+        function populateLiveCamSelect() {
+            const select = document.getElementById('live-cam-select');
+            select.innerHTML = '<option value="">-- Selecione uma Câmera --</option>';
+            state.cameras.forEach((cam, index) => {
+                const opt = document.createElement('option');
+                opt.value = index;
+                opt.innerText = cam.name.toUpperCase();
+                select.appendChild(opt);
+            });
+            
+            // Auto select first camera
+            if (state.cameras.length > 0) {
+                select.value = 0;
+                changeLiveCamera(0);
+            }
+        }
+
+        // Change Live Camera Stream Source
+        function changeLiveCamera(camIndex) {
+            const player = document.getElementById('desktop-video-player');
+            const placeholder = document.getElementById('desktop-video-placeholder');
+            
+            if (camIndex === "") {
+                player.src = '';
+                player.style.display = 'none';
+                placeholder.style.display = 'block';
+                placeholder.innerText = "Selecione uma câmera conectada para ver a imagem.";
+                return;
+            }
+
+            const cam = state.cameras[camIndex];
+            if (cam && cam.rtsp && cam.rtsp.startsWith('rtsp://')) {
+                player.src = `http://127.0.0.1:8082/stream_ai?rtsp=${encodeURIComponent(cam.rtsp)}`;
+                player.style.display = 'block';
+                placeholder.style.display = 'none';
+            } else {
+                player.src = '';
+                player.style.display = 'none';
+                placeholder.style.display = 'block';
+                placeholder.innerText = cam ? "Esta câmera não possui feed de vídeo físico cadastrado." : "Selecione uma câmera conectada para ver a imagem.";
+            }
+        }
+    </script>
+</body>
+</html>

@@ -12,3 +12,9 @@ test_fetch.js
 *.log
 .DS_Store
 Thumbs.db
+
+# Python & PyInstaller build directories
+__pycache__/
+build/
+dist/
+*.spec

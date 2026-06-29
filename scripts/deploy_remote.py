@@ -8,7 +8,6 @@ def deploy():
         "frontend/login.html",
         "frontend/activate.html",
         "frontend/style.css",
-        "frontend/app_v2.js",
         "frontend/app.js",
         "server.py",
         "Dockerfile",
