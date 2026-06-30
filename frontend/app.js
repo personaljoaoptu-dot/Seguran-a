@@ -45,9 +45,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let modalFrame = 0;
     let currentModalAlert = null;
     let isHeatmapActive = true;
-    let statsAlertsCount = 24;
-    let statsSavedValue = 4250;
-    let nextAlertId = 4;
+    let statsAlertsCount = 0;
+    let statsSavedValue = 0;
+    let nextAlertId = 1;
     
     // Map editor state variables
     let isEditingMap = false;
@@ -66,11 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 4, name: "Caixa 2 (Autoatendimento)", status: "online", device: "Intelbras VIP 1230 D", rtsp: "rtsp://192.168.1.100/ch5", profile: "Checkout Não Escaneado", type: "checkout" }
     ];
 
-    let alertsList = [
-        { id: 1, severity: "critical", time: "14:51", title: "Produto escondido sob a roupa", details: "Objeto retirado da prateleira e ocultado na jaqueta.", camera: "Bebidas Finas", confidence: 84, trigger: "Objeto retirado de prateleira -> movimento rápido para o bolso interno da jaqueta.", code: "CONCEALMENT_JACKET" },
-        { id: 2, severity: "warning", time: "14:40", title: "Permanência prolongada na seção", details: "Cliente parado na zona de risco de bebidas finas há mais de 12 minutos.", camera: "Bebidas Finas", confidence: 95, trigger: "Objeto de interesse (bebida cara) monitorado -> track parado na zona de exclusão por 750s.", code: "LIGERING_WARN" },
-        { id: 3, severity: "medium", time: "14:32", title: "Objeto colocado em mochila", details: "Objeto retirado de prateleira inserido em mochila de costas.", camera: "Corredor 1 (Mercearia)", confidence: 91, trigger: "Mão alcançou prateleira -> objeto retirado -> mão interceptou mochila -> objeto oculto.", code: "CONCEALMENT_BAG" }
-    ];
+    let alertsList = [];
 
     // --- DOM ELEMENTS ---
     const tabViews = document.querySelectorAll('.tab-view');
@@ -1276,10 +1272,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             updated = true;
                         }
                     });
-                    if (updated) {
+                    if (updated || (alertsList.length > 0 && statsAlertsCount === 0)) {
                         updateAlertsQueueHTML();
                         statsAlertsCount = alertsList.length;
-                        elStatsAlertsCount.innerText = statsAlertsCount;
+                        statsSavedValue = alertsList.filter(a => a.severity === 'critical').length * 250 + alertsList.filter(a => a.severity === 'warning').length * 100;
+                        updateStatsHeader();
                     }
                 }
             }
