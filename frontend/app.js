@@ -868,159 +868,157 @@ document.addEventListener('DOMContentLoaded', () => {
                             ctx.fillStyle = '#fff';
                             ctx.font = 'bold 11px sans-serif';
                             ctx.textAlign = 'center';
-                            ctx.fillText("MODO DE EDIÇÃO DO MAPA DA LOJA - ARRASTE E REDIMENSIONE AS GÔNDOLAS E CAIXAS", W/2, 19);
+                            ctx.fillText("MODO DE EDIÇÃO DO MAPA DA LOJA - ARRASTE E REDIMENSIONA AS GÔNDOLAS E CAIXAS", W/2, 19);
                             ctx.textAlign = 'start';
                         }
                     }
 
-                    // Handle Normal / Suspicious Simulation
-                    if (!isSuspiciousActive) {
-                        const cycle = (liveFrame % 300) / 300;
-                        let px = W/2 + Math.sin(cycle * Math.PI * 2) * 100;
-                        let py = H/2 + Math.cos(cycle * Math.PI * 2) * 40 + 50;
+                    // Handle Normal / Suspicious Simulation (Only if not streaming real video)
+                    if (!isStreaming) {
+                        if (!isSuspiciousActive) {
+                            const cycle = (liveFrame % 300) / 300;
+                            let px = W/2 + Math.sin(cycle * Math.PI * 2) * 100;
+                            let py = H/2 + Math.cos(cycle * Math.PI * 2) * 40 + 50;
 
-                        drawTrackObject(ctx, px, py, 120, "Pessoa #187", '#00f0ff');
-                        detectionNotice.classList.remove('active');
-                        detectionNotice.innerText = "Nenhuma atividade suspeita no momento";
-                    } else {
-                        const simType = simTypeSelector.value;
-                        const timeline = liveFrame % 380;
-                        
-                        if (simType === 'concealment') {
-                            let px = W / 2, py = H - 50, actionState = 'walk';
-                            const targetShelf = mapElements.find(item => item.type === 'shelf');
-                            let targetX = 320, targetY = 220;
-                            if (targetShelf) {
-                                targetX = targetShelf.x + targetShelf.w + 40;
-                                targetY = targetShelf.y + targetShelf.h / 2;
-                            } else {
-                                const targetCheckout = mapElements.find(item => item.type === 'checkout_counter');
-                                if (targetCheckout) {
-                                    targetX = targetCheckout.x + targetCheckout.w / 2;
-                                    targetY = targetCheckout.y - 40;
-                                }
-                            }
-
-                            if (timeline < 100) {
-                                px = W/2 - (W/2 - targetX) * (timeline / 100);
-                                py = H - 50 - (H - 50 - targetY) * (timeline / 100);
-                            } else if (timeline < 220) {
-                                px = targetX; py = targetY; actionState = 'reach';
-                            } else if (timeline < 300) {
-                                px = targetX; py = targetY; actionState = 'conceal';
-                            } else {
-                                px = targetX + (W/2 - targetX) * ((timeline - 300) / 80);
-                                py = targetY + (H - 50 - targetY) * ((timeline - 300) / 80);
-                                actionState = 'leave';
-                            }
-
-                            let trackColor = '#00f0ff';
-                            if (actionState === 'reach') {
-                                trackColor = '#ff9f00';
-                                detectionNotice.classList.remove('active');
-                                detectionNotice.innerText = "[ALERTA INTERNO] Tempo de permanência na seção cara elevado";
-                            } else if (actionState === 'conceal') {
-                                trackColor = '#ff0055';
-                                detectionNotice.classList.add('active');
-                                detectionNotice.innerText = `⚠ ALERTA CRÍTICO: Ocultamento suspeito de objeto (Confiança: 89%)`;
-                                if (timeline === 225) triggerNewAlert("concealment");
-                            } else if (actionState === 'leave') {
-                                trackColor = '#ff0055';
-                            }
-                            drawTrackObject(ctx, px, py, 110, "Pessoa #194", trackColor, actionState);
-
-                        } else if (simType === 'lingering') {
-                            const targetShelf = mapElements.find(item => item.type === 'shelf');
-                            let px = 320, py = 220;
-                            if (targetShelf) {
-                                px = targetShelf.x + targetShelf.w + 40;
-                                py = targetShelf.y + targetShelf.h / 2;
-                            } else {
-                                const targetCheckout = mapElements.find(item => item.type === 'checkout_counter');
-                                if (targetCheckout) {
-                                    px = targetCheckout.x + targetCheckout.w / 2;
-                                    py = targetCheckout.y - 40;
-                                }
-                            }
+                            drawTrackObject(ctx, px, py, 120, "Pessoa #187", '#00f0ff');
+                            detectionNotice.classList.remove('active');
+                            detectionNotice.innerText = "Nenhuma atividade suspeita no momento";
+                        } else {
+                            const simType = simTypeSelector.value;
+                            const timeline = liveFrame % 380;
                             
-                            let trackColor = '#00f0ff';
-                            let label = "Pessoa #199";
+                            if (simType === 'concealment') {
+                                let px = W / 2, py = H - 50, actionState = 'walk';
+                                const targetShelf = mapElements.find(item => item.type === 'shelf');
+                                let targetX = 320, targetY = 220;
+                                if (targetShelf) {
+                                    targetX = targetShelf.x + targetShelf.w + 40;
+                                    targetY = targetShelf.y + targetShelf.h / 2;
+                                } else {
+                                    const targetCheckout = mapElements.find(item => item.type === 'checkout_counter');
+                                    if (targetCheckout) {
+                                        targetX = targetCheckout.x + targetCheckout.w / 2;
+                                        targetY = targetCheckout.y - 40;
+                                    }
+                                }
 
-                            if (timeline > 120) {
-                                trackColor = '#ff9f00';
-                                detectionNotice.classList.add('active');
-                                detectionNotice.innerText = `⚠ ALERTA: Tempo de permanência anormal na adega: ${Math.round(timeline/10)}s`;
-                                if (timeline === 200) triggerNewAlert("lingering");
-                            }
-                            drawTrackObject(ctx, px, py, 110, label, trackColor, 'stand');
-
-                        } else if (simType === 'running') {
-                            let px = 50 + (timeline / 380) * (W - 100);
-                            let py = H/2 + 50;
-                            let trackColor = '#ff0055';
-                            detectionNotice.classList.add('active');
-                            detectionNotice.innerText = `⚠ ALERTA CRÍTICO: Pessoa correndo no corredor (Velocidade Anormal)`;
-                            if (timeline === 100) triggerNewAlert("running");
-                            drawTrackObject(ctx, px, py, 110, "Pessoa #205", trackColor, 'run');
-
-                        } else if (simType === 'fall') {
-                            let px = W/2;
-                            let py = H/2 + 80;
-                            let trackColor = '#ff9f00';
-
-                            if (timeline < 120) {
-                                px = W/2 - 80 + timeline*0.8;
-                                drawTrackObject(ctx, px, py, 110, "Pessoa #211", '#00f0ff', 'walk');
-                            } else {
-                                trackColor = '#ff0055';
-                                detectionNotice.classList.add('active');
-                                detectionNotice.innerText = `⚠ ALERTA DE EMERGÊNCIA: Queda de cliente detectada no Corredor 2`;
-                                if (timeline === 125) triggerNewAlert("fall");
+                                if (timeline < 120) {
+                                    px = W - 100 - timeline * 1.5;
+                                    py = H - 80;
+                                    drawTrackObject(ctx, px, py, 120, "Pessoa #194", '#00f0ff', 'walk');
+                                } else if (timeline < 200) {
+                                    px = W - 100 - 120 * 1.5;
+                                    py = H - 80 - (timeline - 120) * 1.5;
+                                    drawTrackObject(ctx, px, py, 120, "Pessoa #194", '#00f0ff', 'walk');
+                                } else if (timeline < 240) {
+                                    px = targetX;
+                                    py = targetY;
+                                    drawTrackObject(ctx, px, py, 120, "Pessoa #194", '#eab308', 'reach');
+                                    
+                                    ctx.fillStyle = '#eab308';
+                                    ctx.fillRect(px - 10, py - 40, 20, 20);
+                                    ctx.fillStyle = '#000';
+                                    ctx.font = 'bold 9px sans-serif';
+                                    ctx.fillText("PRODUTO", px - 9, py - 27);
+                                } else if (timeline < 300) {
+                                    px = targetX;
+                                    py = targetY;
+                                    drawTrackObject(ctx, px, py, 120, "Pessoa #194", '#ff0055', 'conceal');
+                                    detectionNotice.classList.add('active');
+                                    detectionNotice.innerText = "⚠ ALERTA DE PERDA: Ocultamento de produto detectado";
+                                    if (timeline === 245) triggerNewAlert("concealment");
+                                } else {
+                                    px = targetX + (timeline - 300) * 2;
+                                    py = targetY + (timeline - 300) * 1.5;
+                                    drawTrackObject(ctx, px, py, 120, "Pessoa #194", '#ff0055', 'walk');
+                                    detectionNotice.classList.remove('active');
+                                }
+                            } else if (simType === 'lingering') {
+                                let px = W / 2 - 100;
+                                let py = H / 2 + 50;
+                                let label = "Pessoa #199";
+                                let trackColor = '#00f0ff';
                                 
-                                ctx.strokeStyle = trackColor;
-                                ctx.lineWidth = 2;
-                                ctx.strokeRect(px - 60, py - 10, 120, 40);
-                                ctx.fillStyle = trackColor;
-                                ctx.fillRect(px - 60, py - 30, 90, 20);
+                                if (timeline > 100) {
+                                    trackColor = '#ff9f00';
+                                    detectionNotice.classList.add('active');
+                                    detectionNotice.innerText = `⚠ ALERTA: Tempo de permanência anormal na adega: ${Math.round(timeline/10)}s`;
+                                    if (timeline === 200) triggerNewAlert("lingering");
+                                }
+                                drawTrackObject(ctx, px, py, 110, label, trackColor, 'stand');
+
+                            } else if (simType === 'running') {
+                                let px = 50 + (timeline / 380) * (W - 100);
+                                let py = H/2 + 50;
+                                let trackColor = '#ff0055';
+                                detectionNotice.classList.add('active');
+                                detectionNotice.innerText = `⚠ ALERTA CRÍTICO: Pessoa correndo no corredor (Velocidade Anormal)`;
+                                if (timeline === 100) triggerNewAlert("running");
+                                drawTrackObject(ctx, px, py, 110, "Pessoa #205", trackColor, 'run');
+
+                            } else if (simType === 'fall') {
+                                let px = W/2;
+                                let py = H/2 + 80;
+                                let trackColor = '#ff9f00';
+
+                                if (timeline < 120) {
+                                    px = W/2 - 80 + timeline*0.8;
+                                    drawTrackObject(ctx, px, py, 110, "Pessoa #211", '#00f0ff', 'walk');
+                                } else {
+                                    trackColor = '#ff0055';
+                                    detectionNotice.classList.add('active');
+                                    detectionNotice.innerText = `⚠ ALERTA DE EMERGÊNCIA: Queda de cliente detectada no Corredor 2`;
+                                    if (timeline === 125) triggerNewAlert("fall");
+                                    
+                                    ctx.strokeStyle = trackColor;
+                                    ctx.lineWidth = 2;
+                                    ctx.strokeRect(px - 60, py - 10, 120, 40);
+                                    ctx.fillStyle = trackColor;
+                                    ctx.fillRect(px - 60, py - 30, 90, 20);
+                                    ctx.fillStyle = '#000';
+                                    ctx.font = 'bold 9px monospace';
+                                    ctx.fillText("Queda #211 (94%)", px - 56, py - 16);
+                                    
+                                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                                    ctx.lineWidth = 1;
+                                    ctx.beginPath(); ctx.arc(px - 40, py + 10, 5, 0, Math.PI*2); ctx.stroke();
+                                    ctx.beginPath(); ctx.moveTo(px - 35, py + 10); ctx.lineTo(px + 20, py + 10); ctx.stroke();
+                                }
+
+                            } else if (simType === 'shelf') {
+                                const targetShelf = mapElements.find(item => item.type === 'shelf');
+                                let sx = 110, sy = 160, sw = 140, sh = 60;
+                                if (targetShelf) {
+                                    sx = targetShelf.x + targetShelf.w * 0.1;
+                                    sy = targetShelf.y + targetShelf.h * 0.3;
+                                    sw = targetShelf.w * 0.8;
+                                    sh = targetShelf.h * 0.2;
+                                }
+                                
+                                detectionNotice.classList.add('active');
+                                detectionNotice.innerText = `⚠ OPERACIONAL: Gôndola vazia detectada no Corredor 1 (Nível 2)`;
+                                if (timeline === 100) triggerNewAlert("shelf");
+
+                                ctx.strokeStyle = '#ff9f00';
+                                ctx.lineWidth = 1.5;
+                                ctx.setLineDash([4, 4]);
+                                ctx.strokeRect(sx, sy, sw, sh);
+                                ctx.setLineDash([]);
+                                
+                                ctx.fillStyle = 'rgba(255, 159, 0, 0.2)';
+                                ctx.fillRect(sx, sy, sw, sh);
+
+                                ctx.fillStyle = '#ff9f00';
+                                ctx.fillRect(sx, sy - 18, 110, 18);
                                 ctx.fillStyle = '#000';
                                 ctx.font = 'bold 9px monospace';
-                                ctx.fillText("Queda #211 (94%)", px - 56, py - 16);
-                                
-                                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-                                ctx.lineWidth = 1;
-                                ctx.beginPath(); ctx.arc(px - 40, py + 10, 5, 0, Math.PI*2); ctx.stroke();
-                                ctx.beginPath(); ctx.moveTo(px - 35, py + 10); ctx.lineTo(px + 20, py + 10); ctx.stroke();
+                                ctx.fillText("Gôndola Vazia (87%)", sx + 4, sy - 6);
                             }
-
-                        } else if (simType === 'shelf') {
-                            const targetShelf = mapElements.find(item => item.type === 'shelf');
-                            let sx = 110, sy = 160, sw = 140, sh = 60;
-                            if (targetShelf) {
-                                sx = targetShelf.x + targetShelf.w * 0.1;
-                                sy = targetShelf.y + targetShelf.h * 0.3;
-                                sw = targetShelf.w * 0.8;
-                                sh = targetShelf.h * 0.2;
-                            }
-                            
-                            detectionNotice.classList.add('active');
-                            detectionNotice.innerText = `⚠ OPERACIONAL: Gôndola vazia detectada no Corredor 1 (Nível 2)`;
-                            if (timeline === 100) triggerNewAlert("shelf");
-
-                            ctx.strokeStyle = '#ff9f00';
-                            ctx.lineWidth = 1.5;
-                            ctx.setLineDash([4, 4]);
-                            ctx.strokeRect(sx, sy, sw, sh);
-                            ctx.setLineDash([]);
-                            
-                            ctx.fillStyle = 'rgba(255, 159, 0, 0.2)';
-                            ctx.fillRect(sx, sy, sw, sh);
-
-                            ctx.fillStyle = '#ff9f00';
-                            ctx.fillRect(sx, sy - 18, 110, 18);
-                            ctx.fillStyle = '#000';
-                            ctx.font = 'bold 9px monospace';
-                            ctx.fillText("Gôndola Vazia (87%)", sx + 4, sy - 6);
                         }
+                    } else {
+                        // Real stream is active
+                        detectionNotice.classList.remove('active');
+                        detectionNotice.innerText = "Monitoramento ao vivo ativo";
                     }
 
                     // Draw timestamp overlay
@@ -1060,8 +1058,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
                         
-                        // If simulation active on this specific camera, draw bounding box
-                        if (isSuspiciousActive && cam.id === activeCameraId) {
+                        // If simulation active on this specific camera and not streaming, draw bounding box
+                        if (isSuspiciousActive && cam.id === activeCameraId && !isStreaming) {
                             gCtx.strokeStyle = '#ff0055';
                             gCtx.lineWidth = 1.5;
                             gCtx.strokeRect(gW/3, gH/3, gW/3, gH/3);
