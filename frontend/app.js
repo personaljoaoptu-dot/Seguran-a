@@ -248,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="alert-card-actions">
+                    <button class="btn-play-clip" data-alert-id="${alert.id}">Rever Clipe</button>
                     <div class="alert-feedback-btns">
                         <button class="btn-feedback correct" title="Confirmar Alerta" data-alert-id="${alert.id}">✓</button>
                         <button class="btn-feedback incorrect" title="Falso Positivo" data-alert-id="${alert.id}">✗</button>
@@ -255,6 +256,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
             alertsQueueContainer.appendChild(card);
+        });
+
+        document.querySelectorAll('.btn-play-clip').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = parseInt(e.target.getAttribute('data-alert-id'));
+                openAlertModal(id);
+            });
         });
 
         document.querySelectorAll('.btn-feedback.correct').forEach(btn => {
@@ -305,6 +313,162 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStatsHeader() {
         elStatsAlertsCount.innerText = statsAlertsCount;
         elStatsSavedValue.innerText = `R$ ${statsSavedValue.toLocaleString('pt-BR')}`;
+    }
+
+    // --- ALERTS VIDEO CLIP POPUP MODAL ---
+    const videoClipModal = document.getElementById('video-clip-modal');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const modalAlertTitle = document.getElementById('modal-alert-title');
+    const modalMetaCamera = document.getElementById('modal-meta-camera');
+    const modalMetaDetails = document.getElementById('modal-meta-details');
+    const modalMetaTrigger = document.getElementById('modal-meta-trigger');
+    const btnModalConfirm = document.getElementById('btn-modal-confirm');
+    const btnModalIgnore = document.getElementById('btn-modal-ignore');
+    const modalVideoCanvas = document.getElementById('modal-video-canvas');
+    
+    let modalAnimFrame = null;
+    
+    function openAlertModal(id) {
+        const alert = alertsList.find(a => a.id === id);
+        if (!alert) return;
+        
+        modalAlertTitle.innerText = alert.title;
+        modalMetaCamera.innerText = alert.camera;
+        modalMetaDetails.innerText = alert.details;
+        modalMetaTrigger.innerText = alert.trigger || "Detecção de Padrão comportamental de IA com base em vetor de movimento.";
+        
+        // Show modal
+        videoClipModal.classList.add('active');
+        
+        // Attach action feedback
+        btnModalConfirm.onclick = () => {
+            handleAlertFeedback(id, true);
+            closeAlertModal();
+        };
+        btnModalIgnore.onclick = () => {
+            handleAlertFeedback(id, false);
+            closeAlertModal();
+        };
+        
+        // Start simulated clip animation in modal canvas
+        startModalClipSimulation(alert);
+    }
+    
+    function closeAlertModal() {
+        videoClipModal.classList.remove('active');
+        if (modalAnimFrame) {
+            cancelAnimationFrame(modalAnimFrame);
+            modalAnimFrame = null;
+        }
+    }
+    
+    if (btnCloseModal) {
+        btnCloseModal.addEventListener('click', closeAlertModal);
+    }
+    
+    // Close modal when clicking background
+    if (videoClipModal) {
+        videoClipModal.addEventListener('click', (e) => {
+            if (e.target === videoClipModal) {
+                closeAlertModal();
+            }
+        });
+    }
+
+    function startModalClipSimulation(alert) {
+        const ctx = modalVideoCanvas.getContext('2d');
+        const W = modalVideoCanvas.width;
+        const H = modalVideoCanvas.height;
+        let frame = 0;
+        
+        function tick() {
+            frame++;
+            
+            // Draw background
+            ctx.fillStyle = '#060a13';
+            ctx.fillRect(0, 0, W, H);
+            
+            // Draw some mock grid lines (cctv look)
+            ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < W; i += 40) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
+            }
+            for (let i = 0; i < H; i += 40) {
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke();
+            }
+            
+            // Draw store shelf outlines
+            ctx.fillStyle = '#0c1626';
+            ctx.fillRect(80, 80, 120, 200);
+            ctx.fillRect(440, 80, 120, 200);
+            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.font = '10px sans-serif';
+            ctx.fillText("Gôndola", 120, 150);
+            ctx.fillText("Gôndola", 480, 150);
+            
+            // Draw simulated person track box
+            const x = 240 + Math.sin(frame * 0.05) * 60;
+            const y = 120 + Math.cos(frame * 0.05) * 15;
+            const w = 80;
+            const h = 180;
+            
+            // Bounding box color based on alert severity
+            const isCritical = alert.severity === 'critical';
+            ctx.strokeStyle = isCritical ? 'var(--rose-500)' : 'var(--amber-500)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, h);
+            
+            // Label
+            ctx.fillStyle = isCritical ? 'var(--rose-500)' : 'var(--amber-500)';
+            ctx.fillRect(x, y - 18, 90, 18);
+            ctx.fillStyle = '#000';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.fillText(`PESSOA #194 [${alert.confidence}%]`, x + 4, y - 6);
+            
+            // Draw simple skeleton pose
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.6)';
+            ctx.lineWidth = 2;
+            
+            // Head
+            ctx.beginPath(); ctx.arc(x + 40, y + 25, 12, 0, Math.PI*2); ctx.stroke();
+            // Spine
+            ctx.beginPath(); ctx.moveTo(x + 40, y + 37); ctx.lineTo(x + 40, y + 100); ctx.stroke();
+            // Arms
+            ctx.beginPath(); ctx.moveTo(x + 15, y + 55); ctx.lineTo(x + 65, y + 55); ctx.stroke();
+            // Hands moving suspicious
+            const suspHandY = y + 70 + Math.sin(frame * 0.2) * 10;
+            ctx.beginPath(); ctx.moveTo(x + 15, y + 55); ctx.lineTo(x + 20, suspHandY); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x + 65, y + 55); ctx.lineTo(x + 60, suspHandY); ctx.stroke();
+            // Legs
+            ctx.beginPath(); ctx.moveTo(x + 40, y + 100); ctx.lineTo(x + 25, y + 160); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(x + 40, y + 100); ctx.lineTo(x + 55, y + 160); ctx.stroke();
+            
+            // Draw loitering / suspicious zone
+            ctx.strokeStyle = 'rgba(255, 0, 85, 0.2)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            ctx.strokeRect(60, 60, 520, 240);
+            ctx.setLineDash([]);
+            ctx.fillStyle = 'rgba(255, 0, 85, 0.4)';
+            ctx.fillText("ROI - ZONE DE COMPORTAMENTO SUSPEITO", 70, 75);
+            
+            // Draw CCTV overlays (REC red dot, Time)
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.font = '10px Courier New';
+            ctx.fillText("REPLAY CLIP", 20, 25);
+            ctx.fillText(new Date().toLocaleDateString('pt-BR'), 20, 40);
+            ctx.fillText(alert.time + ":" + String(frame % 60).padStart(2, '0'), 20, 55);
+            
+            // Blinking red dot
+            if (Math.floor(frame / 20) % 2 === 0) {
+                ctx.fillStyle = '#ff0055';
+                ctx.beginPath(); ctx.arc(W - 25, 20, 5, 0, Math.PI*2); ctx.fill();
+            }
+            
+            modalAnimFrame = requestAnimationFrame(tick);
+        }
+        tick();
     }
 
 
