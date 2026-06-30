@@ -234,6 +234,21 @@ h1, h2, h3, h4, h5, h6 {
     animation: pulse 1.8s infinite ease-in-out;
 }
 
+.pulse-dot.red {
+    background-color: var(--rose-500);
+    box-shadow: 0 0 8px var(--rose-500);
+}
+
+.pulse-dot.red::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background-color: var(--rose-500);
+    animation: pulse 1.8s infinite ease-in-out;
+}
+
 .legal-disclaimer {
     font-size: 11px;
     color: var(--slate-400);

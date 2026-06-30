@@ -135,6 +135,33 @@ document.addEventListener('DOMContentLoaded', () => {
     loadAlertsFromDatabase();
     setInterval(loadAlertsFromDatabase, 5000);
 
+    // Edge Status Heartbeat Loop
+    async function checkEdgeStatus() {
+        const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
+        if (!tenantId) return;
+        try {
+            const res = await fetch(`/api/edge-status?tenant_id=${tenantId}`);
+            if (res.ok) {
+                const data = await res.json();
+                const dot = document.querySelector('.pulse-dot');
+                const text = document.querySelector('.status-text');
+                if (dot && text) {
+                    if (data.online) {
+                        dot.className = "pulse-dot green";
+                        text.innerHTML = "Edge Node: <strong>Conectado</strong>";
+                    } else {
+                        dot.className = "pulse-dot red";
+                        text.innerHTML = "Edge Node: <strong>Desconectado</strong>";
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Error fetching edge status:", e);
+        }
+    }
+    checkEdgeStatus();
+    setInterval(checkEdgeStatus, 8000);
+
     // --- ROUTING / TAB TOGGLE ---
     navButtons.forEach(btn => {
         btn.addEventListener('click', () => {

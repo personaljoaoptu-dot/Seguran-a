@@ -44,19 +44,24 @@ ROI_POLYGON = [
     [0.02, 0.98]  
 ]
 
-# Load Haar Cascade for face detection (Looking at camera heuristic)
+# Load Haar Cascades for face detection (Looking at camera heuristic)
 face_cascade = None
+profile_cascade = None
 try:
-    cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-    face_cascade = cv2.CascadeClassifier(cascade_path)
-    if face_cascade.empty():
-        print("[ENGINE] Classificador de faces não pôde ser carregado (XML vazio). Usando heurística alternativa.")
-        face_cascade = None
+    frontal_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+    profile_path = cv2.data.haarcascades + 'haarcascade_profileface.xml'
+    face_cascade = cv2.CascadeClassifier(frontal_path)
+    profile_cascade = cv2.CascadeClassifier(profile_path)
+    if face_cascade.empty() or profile_cascade.empty():
+        print("[ENGINE] Classificadores de faces/perfil vazios. Usando o que for válido.")
+        if face_cascade.empty(): face_cascade = None
+        if profile_cascade.empty(): profile_cascade = None
     else:
-        print("[ENGINE] Classificador de faces carregado com sucesso para detecção de olhar.")
+        print("[ENGINE] Classificadores frontal e perfil de faces carregados com sucesso.")
 except Exception as e:
-    print(f"[ENGINE] Erro ao carregar Cascade de faces: {e}. Detecção de olhar será simulada/estimada.")
+    print(f"[ENGINE] Erro ao carregar Cascades de faces: {e}. Detecção de olhar será reduzida.")
     face_cascade = None
+    profile_cascade = None
 
 # Persistent state tracking: track_id -> dict
 tracked_persons = {}
@@ -112,6 +117,30 @@ def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEA
             print(f"[API] Erro ao enviar alerta para o n8n: {ex}")
 
     threading.Thread(target=post_req, daemon=True).start()
+
+def heartbeat_loop():
+    """Periodically sends an online heartbeat signal to the central dashboard VPS"""
+    print("[HEARTBEAT] Iniciando loop de sinal de presença (heartbeat)...")
+    url = "http://144.91.121.55:8000/api/edge-ping"
+    payload = {
+        "tenant_id": TENANT_ID,
+        "camera_name": CAMERA_NAME,
+        "status": "online"
+    }
+    while running:
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode('utf-8'),
+                headers={'Content-Type': 'application/json'},
+                method='POST'
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                if response.getcode() == 200:
+                    pass
+        except Exception as e:
+            pass
+        time.sleep(10.0)
 
 active_streams = {}  # rtsp_url -> {"frame": jpeg_bytes, "last_accessed": time}
 streams_lock = threading.Lock()
@@ -434,8 +463,10 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 old_x, old_y, _ = three_sec_ago_pos
                 dist = math.sqrt((pcx - old_x) ** 2 + (pcy - old_y) ** 2)
                 
-                # If moved less than 45px in 3 seconds, they are standing still
-                if dist < 45.0:
+                # Scale-invariant movement threshold: 18% of the person's bounding box maximum dimension
+                movement_threshold = max(20.0, min(80.0, 0.18 * max(pw, ph)))
+                
+                if dist < movement_threshold:
                     if p_state["standing_still_start"] is None:
                         p_state["standing_still_start"] = current_time
                     else:
@@ -450,7 +481,12 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
             p_state["last_position"] = (pcx, pcy)
             
             # Check active bag / object association and concealment
+            if "nearby_objects" not in p_state:
+                p_state["nearby_objects"] = {} # class_name -> {"last_seen": t, "pos": (x,y)}
+                
             obj_associated_in_frame = False
+            current_nearby_classes = set()
+            
             for obj in objects:
                 ocx, ocy = obj["center"]
                 ox1, oy1, ow, oh = obj["bbox"]
@@ -467,17 +503,35 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     p_state["bag_persistence_start"] = current_time
                     obj_associated_in_frame = True
                     
-                    # Concealment heuristic: small object overlapping person's torso region
-                    # e.g., cell phone, umbrella, etc.
+                    p_state["nearby_objects"][obj_cls] = {
+                        "last_seen": current_time,
+                        "pos": (ocx, ocy)
+                    }
+                    current_nearby_classes.add(obj_cls)
+                    
+                    # Real-time concealment heuristic: small object overlapping person's torso region
                     is_small_object = obj_cls in ["cell phone", "umbrella"]
                     if is_small_object:
-                        # Check vertical overlap (waist/chest area)
-                        # person torso is roughly from y1 + 0.3*ph to y1 + 0.8*ph
                         if (py1 + 0.3*ph <= ocy <= py1 + 0.85*ph) and (px1 <= ocx <= px1 + pw):
-                            if current_time - p_state["last_concealment_event_time"] > 4.0:
+                            if current_time - p_state["last_concealment_event_time"] > 5.0:
                                 p_state["concealment_events"] += 1
                                 p_state["last_concealment_event_time"] = current_time
                                 print(f"[AI-ALERT] Ação de ocultamento detectada: Pessoa #{track_id} com objeto '{obj_cls}' na região corporal.")
+            
+            # Temporal concealment heuristic: small object disappears near person
+            for old_cls, obj_info in list(p_state["nearby_objects"].items()):
+                if old_cls not in current_nearby_classes:
+                    time_since_seen = current_time - obj_info["last_seen"]
+                    if time_since_seen < 1.8:
+                        ox, oy = obj_info["pos"]
+                        # Verify if disappearance happened near the person's torso region
+                        if (py1 + 0.25*ph <= oy <= py1 + 0.85*ph) and (px1 - 20 <= ox <= px1 + pw + 20):
+                            if current_time - p_state["last_concealment_event_time"] > 5.0:
+                                p_state["concealment_events"] += 1
+                                p_state["last_concealment_event_time"] = current_time
+                                print(f"[AI-ALERT] Ocultamento Temporal: Objeto '{old_cls}' sumiu na área corporal da Pessoa #{track_id}!")
+                    if time_since_seen > 3.0:
+                        p_state["nearby_objects"].pop(old_cls, None)
             
             # Handle bag persistence if no bag detected in this frame
             if not obj_associated_in_frame:
@@ -487,7 +541,7 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                         
             # Handle Face Detection (Gaze at camera)
             looking_at_camera = False
-            if frame is not None and face_cascade is not None:
+            if frame is not None:
                 try:
                     # Crop upper 35% of person bbox
                     head_y2 = py1 + int(ph * 0.35)
@@ -495,11 +549,17 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                         head_crop = frame[py1:head_y2, px1:px1+pw]
                         if head_crop.size > 0:
                             gray = cv2.cvtColor(head_crop, cv2.COLOR_BGR2GRAY)
-                            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(15, 15))
-                            if len(faces) > 0:
-                                looking_at_camera = True
+                            # Frontal face cascade
+                            if face_cascade is not None:
+                                faces_front = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(15, 15))
+                                if len(faces_front) > 0:
+                                    looking_at_camera = True
+                            # Profile face cascade
+                            if not looking_at_camera and profile_cascade is not None:
+                                faces_profile = profile_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3, minSize=(15, 15))
+                                if len(faces_profile) > 0:
+                                    looking_at_camera = True
                 except Exception as ex:
-                    # Silent fail on CV2 frame errors
                     pass
             elif simulate and frame is None:
                 # Fallback to simulate look at camera in simulation mode
@@ -669,6 +729,13 @@ def ai_inference_loop(simulate=False):
                     "class": "backpack",
                     "conf": 0.88
                 })
+                # Simulate cell phone in hand (near torso) from frame 12 to 180, then disappear
+                if 12 <= frame_count <= 180:
+                    detections.append({
+                        "bbox": [870, 550, 30, 50],
+                        "class": "cell phone",
+                        "conf": 0.85
+                    })
 
         # Process detections and infractions
         process_detections_and_infractions(detections, W, H, img_to_check, simulate)
@@ -796,6 +863,9 @@ if __name__ == '__main__':
     
     # Start AI Inference Thread
     threading.Thread(target=ai_inference_loop, args=(simulate_mode,), daemon=True).start()
+    
+    # Start Heartbeat Thread
+    threading.Thread(target=heartbeat_loop, daemon=True).start()
     
     try:
         pipeline.run_pipeline()

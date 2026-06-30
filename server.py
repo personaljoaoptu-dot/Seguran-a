@@ -7,6 +7,10 @@ import json
 import bcrypt
 import uuid
 import traceback
+import time
+
+# In-memory registry for Edge Node heartbeats (tenant_id -> timestamp)
+active_edge_nodes = {}
 
 PORT = 8000
 
@@ -148,6 +152,16 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 print(f"[ERROR] Falha ao carregar alertas para o tenant {tenant_id}: {e}")
                 traceback.print_exc()
                 self.send_error_response(f"Erro ao carregar alertas: {e}")
+        elif clean_path == '/api/edge-status':
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            tenant_id = query_params.get('tenant_id', [''])[0].strip()
+            if not tenant_id:
+                self.send_error_response("tenant_id é obrigatório.")
+                return
+            
+            last_seen = active_edge_nodes.get(tenant_id, 0)
+            is_online = (time.time() - last_seen) < 25.0
+            self.send_success_response({"success": True, "online": is_online})
             return
             
         # Default index resolution
@@ -406,6 +420,19 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f"[ERROR] Erro interno durante configuração: {e}")
                 self.send_error_response("Erro interno ao processar configuração.")
+        elif self.path == '/api/edge-ping':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                tenant_id = payload.get('tenant_id', '').strip()
+                if not tenant_id:
+                    self.send_error_response("tenant_id é obrigatório.")
+                    return
+                active_edge_nodes[tenant_id] = time.time()
+                self.send_success_response({"success": True, "message": "Heartbeat received."})
+            except Exception as e:
+                self.send_error_response(f"Erro ao processar heartbeat: {e}")
         else:
             self.send_error(404, "Route Not Found")
 
