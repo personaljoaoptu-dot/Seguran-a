@@ -92,6 +92,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             if not tenant_id:
                 self.send_error_response("tenant_id é obrigatório.")
                 return
+            conn = None
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
@@ -106,12 +107,17 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         "status": row[3] or "online"
                     })
                 cursor.close()
-                conn.close()
                 self.send_success_response({"success": True, "cameras": cameras})
             except Exception as e:
                 print(f"[ERROR] Falha ao carregar câmeras para o tenant {tenant_id}: {e}")
                 traceback.print_exc()
                 self.send_error_response(f"Erro ao carregar câmeras: {e}")
+            finally:
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
             return
 
         elif clean_path == '/api/get-alerts':
@@ -120,6 +126,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             if not tenant_id:
                 self.send_error_response("tenant_id é obrigatório.")
                 return
+            conn = None
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
@@ -146,12 +153,17 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         "confidence": int(row[4]) if row[4] is not None else 90
                     })
                 cursor.close()
-                conn.close()
                 self.send_success_response({"success": True, "alerts": alerts})
             except Exception as e:
                 print(f"[ERROR] Falha ao carregar alertas para o tenant {tenant_id}: {e}")
                 traceback.print_exc()
                 self.send_error_response(f"Erro ao carregar alertas: {e}")
+            finally:
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
         elif clean_path == '/api/edge-status':
             query_params = urllib.parse.parse_qs(parsed_url.query)
             tenant_id = query_params.get('tenant_id', [''])[0].strip()
