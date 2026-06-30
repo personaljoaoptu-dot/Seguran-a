@@ -130,7 +130,13 @@
                         
                         <div class="video-container">
                             <div class="video-header">
-                                <span class="camera-info-badge" id="active-cam-title">Corredor 1 (Mercearia)</span>
+                                <div class="video-header-left" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                                    <select id="view-mode-selector" class="sim-dropdown" style="min-width: 140px; font-weight: 600; padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--slate-700); background-color: var(--slate-950); color: var(--slate-200);">
+                                        <option value="single">Visualização Única</option>
+                                        <option value="grid">Visualização em Grade (VMS)</option>
+                                    </select>
+                                    <span class="camera-info-badge" id="active-cam-title">Corredor 1 (Mercearia)</span>
+                                </div>
                                 <div class="video-controls">
                                     <span class="video-fps">FPS: 30.2</span>
                                     <span class="video-latency">Latência: 45ms</span>
@@ -138,9 +144,25 @@
                                 </div>
                             </div>
                             
-                            <!-- Video Simulation Canvas -->
-                            <div class="canvas-wrapper">
-                                <canvas id="video-canvas" width="800" height="450"></canvas>
+                            <!-- Video Viewport -->
+                            <div class="canvas-wrapper" id="canvas-wrapper">
+                                <div id="video-display-single" style="display: block; width: 100%; height: 100%; position: relative;">
+                                    <canvas id="video-canvas" width="800" height="450"></canvas>
+                                    
+                                    <!-- Fallback Offline Placeholder -->
+                                    <div class="offline-placeholder" id="offline-placeholder" style="display: none;">
+                                        <div class="offline-icon-wrapper">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="offline-icon"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                                        </div>
+                                        <h4>SINAL PERDIDO</h4>
+                                        <p>Edge Node Desconectado ou Fluxo RTSP Indisponível</p>
+                                    </div>
+                                </div>
+                                
+                                <div id="video-display-grid" style="display: none; width: 100%; height: 100%; overflow-y: auto;">
+                                    <!-- Grid of cameras populated dynamically -->
+                                </div>
+                                
                                 <div class="detection-overlay-notice" id="detection-notice">
                                     Nenhuma atividade suspeita no momento
                                 </div>

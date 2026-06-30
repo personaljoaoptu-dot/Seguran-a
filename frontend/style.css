@@ -487,6 +487,157 @@ h1, h2, h3, h4, h5, h6 {
     width: 100%;
     height: 100%;
     display: block;
+    object-fit: contain;
+}
+
+/* --- VMS GRID & MULTIVIEW --- */
+#video-display-grid {
+    box-sizing: border-box;
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+    height: 100%;
+    width: 100%;
+    align-content: center;
+}
+#video-display-grid.cols-1 { grid-template-columns: 1fr; }
+#video-display-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+#video-display-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+#video-display-grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+
+.grid-cam-item {
+    position: relative;
+    aspect-ratio: 16/9;
+    background-color: #020617;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--slate-850);
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease-in-out;
+}
+
+.grid-cam-item:hover, .grid-cam-item.active {
+    border-color: var(--cyan-500);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+
+.grid-cam-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+}
+
+.grid-cam-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 6px 12px;
+    background: rgba(2, 6, 23, 0.65);
+    backdrop-filter: blur(4px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    z-index: 5;
+}
+
+.grid-cam-name {
+    color: var(--slate-100);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.grid-cam-time {
+    color: var(--slate-400);
+    font-family: monospace;
+    font-size: 10px;
+}
+
+/* --- FALLBACK OFFLINE PLACEHOLDER --- */
+.offline-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at center, #0e1626 0%, #050810 100%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-body);
+    border-radius: inherit;
+    box-sizing: border-box;
+    padding: 20px;
+}
+
+.offline-icon-wrapper {
+    background-color: rgba(244, 63, 94, 0.1);
+    border: 1px solid rgba(244, 63, 94, 0.2);
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+    box-shadow: 0 0 15px rgba(244, 63, 94, 0.1);
+}
+
+.offline-icon {
+    width: 32px;
+    height: 32px;
+    color: var(--rose-500);
+    animation: pulse 2s infinite;
+}
+
+.offline-placeholder h4 {
+    color: var(--white);
+    font-weight: 800;
+    font-size: 15px;
+    margin: 0 0 6px 0;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.offline-placeholder p {
+    color: var(--slate-500);
+    font-size: 12px;
+    margin: 0;
+    text-align: center;
+}
+
+/* Grid mini placeholder scaling */
+.grid-cam-item .offline-placeholder {
+    padding: 10px;
+}
+.grid-cam-item .offline-placeholder h4 {
+    font-size: 11px;
+    margin-bottom: 2px;
+}
+.grid-cam-item .offline-placeholder p {
+    font-size: 9px;
+}
+.grid-cam-item .offline-icon-wrapper {
+    width: 36px;
+    height: 36px;
+    margin-bottom: 8px;
+}
+.grid-cam-item .offline-icon {
+    width: 18px;
+    height: 18px;
 }
 
 .detection-overlay-notice {

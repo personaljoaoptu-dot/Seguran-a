@@ -22,22 +22,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- STATE MANAGEMENT & VARIABLES ---
     let activeTab = 'live';
     let activeCameraId = 0;
+    let viewMode = 'single'; // 'single' or 'grid'
+    let isEdgeOnline = true; // Heartbeat edge connectivity status
     let liveAnimId = null;
     let liveFrame = 0;
-    let realCamImage = null;
+    
+    // Map of camera stream images
+    const cameraStreams = {};
 
-    function updateActiveCameraStream(camData) {
-        if (camData && camData.rtsp && camData.status === 'online') {
-            if (!realCamImage) {
-                realCamImage = new Image();
+    function updateActiveStreams() {
+        cameraList.forEach(cam => {
+            if (!cameraStreams[cam.id]) {
+                cameraStreams[cam.id] = new Image();
             }
-            const streamUrl = `http://${window.location.hostname}:8082/stream?rtsp=${encodeURIComponent(camData.rtsp)}`;
-            if (realCamImage.src !== streamUrl) {
-                realCamImage.src = streamUrl;
+            const img = cameraStreams[cam.id];
+            
+            const isCamOnline = (cam.status === 'online' || cam.status === 'warning') && isEdgeOnline;
+            
+            if (isCamOnline && cam.rtsp) {
+                // If in Grid mode, load all streams. If in Single mode, only load activeCameraId.
+                const shouldLoad = (viewMode === 'grid') || (viewMode === 'single' && cam.id === activeCameraId);
+                
+                if (shouldLoad) {
+                    const streamUrl = `http://${window.location.hostname}:8082/stream?rtsp=${encodeURIComponent(cam.rtsp)}`;
+                    if (img.src !== streamUrl) {
+                        img.src = streamUrl;
+                    }
+                } else {
+                    if (img.src !== '') {
+                        img.src = '';
+                    }
+                }
+            } else {
+                if (img.src !== '') {
+                    img.src = '';
+                }
             }
-        } else {
-            realCamImage = null;
-        }
+        });
     }
     let isSuspiciousActive = false;
     let suspiciousPhase = 0; // 0: enter, 1: browse, 2: conceal, 3: exit
@@ -121,6 +142,113 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnToggleHeatmap = document.getElementById('btn-toggle-heatmap');
     const btnResetHeatmap = document.getElementById('btn-reset-heatmap');
 
+    // --- VMS GRID LAYOUT REBUILD ---
+    function rebuildVideoDisplayGridHTML() {
+        const gridContainer = document.getElementById('video-display-grid');
+        if (!gridContainer) return;
+        
+        gridContainer.innerHTML = '';
+        
+        const count = cameraList.length;
+        gridContainer.className = '';
+        if (count <= 1) {
+            gridContainer.classList.add('cols-1');
+        } else if (count <= 4) {
+            gridContainer.classList.add('cols-2');
+        } else if (count <= 9) {
+            gridContainer.classList.add('cols-3');
+        } else {
+            gridContainer.classList.add('cols-4');
+        }
+        
+        cameraList.forEach(cam => {
+            const item = document.createElement('div');
+            item.className = `grid-cam-item ${cam.id === activeCameraId ? 'active' : ''}`;
+            item.setAttribute('data-cam-id', cam.id);
+            
+            item.addEventListener('click', () => {
+                activeCameraId = cam.id;
+                viewMode = 'single';
+                const modeSelector = document.getElementById('view-mode-selector');
+                if (modeSelector) modeSelector.value = 'single';
+                
+                const singleDisp = document.getElementById('video-display-single');
+                const gridDisp = document.getElementById('video-display-grid');
+                if (singleDisp) singleDisp.style.display = 'block';
+                if (gridDisp) gridDisp.style.display = 'none';
+                
+                activeCamTitle.innerText = cam.name;
+                
+                loadCameraLayout(cam.id);
+                if (typeof stopEditingMode === 'function') {
+                    stopEditingMode();
+                }
+                
+                updateActiveStreams();
+                rebuildCameraSelectorsHTML();
+                
+                isSuspiciousActive = false;
+                suspiciousPhase = 0;
+                detectionNotice.classList.remove('active');
+                detectionNotice.innerText = "Nenhuma atividade suspeita no momento";
+                addLog(`Visualizando fluxo em tempo real: ${cam.name} (${cam.device}).`);
+            });
+            
+            const isCamOnline = (cam.status === 'online' || cam.status === 'warning') && isEdgeOnline;
+            const indicatorClass = cam.status === 'online' ? 'online' : (cam.status === 'warning' ? 'warning' : 'offline');
+            
+            item.innerHTML = `
+                <canvas class="grid-cam-canvas" id="grid-canvas-${cam.id}" width="400" height="225"></canvas>
+                
+                <!-- Fallback Grid Placeholder -->
+                <div class="offline-placeholder" id="grid-offline-${cam.id}" style="display: ${isCamOnline ? 'none' : 'flex'}">
+                    <div class="offline-icon-wrapper">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="offline-icon"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                    <h4>SINAL PERDIDO</h4>
+                    <p>${!isEdgeOnline ? 'Edge Node Desconectado' : 'Fluxo RTSP Indisponível'}</p>
+                </div>
+                
+                <!-- VMS Translucent Overlay -->
+                <div class="grid-cam-overlay">
+                    <div class="grid-cam-name">
+                        <span class="cam-indicator ${indicatorClass}"></span>
+                        ${cam.name}
+                    </div>
+                    <div class="grid-cam-time" id="grid-time-${cam.id}">--:--:--</div>
+                </div>
+            `;
+            
+            gridContainer.appendChild(item);
+        });
+    }
+
+    // View mode selector change event
+    const viewModeSelector = document.getElementById('view-mode-selector');
+    if (viewModeSelector) {
+        viewModeSelector.addEventListener('change', (e) => {
+            viewMode = e.target.value;
+            const singleDisp = document.getElementById('video-display-single');
+            const gridDisp = document.getElementById('video-display-grid');
+            
+            if (viewMode === 'single') {
+                if (singleDisp) singleDisp.style.display = 'block';
+                if (gridDisp) gridDisp.style.display = 'none';
+                
+                const cam = cameraList.find(c => c.id === activeCameraId);
+                if (cam) activeCamTitle.innerText = cam.name;
+            } else {
+                if (singleDisp) singleDisp.style.display = 'none';
+                if (gridDisp) gridDisp.style.display = 'grid';
+                
+                activeCamTitle.innerText = "Modo Multiview (VMS)";
+                rebuildVideoDisplayGridHTML();
+            }
+            updateActiveStreams();
+            rebuildCameraSelectorsHTML();
+        });
+    }
+
     // --- INITIALIZATION ---
     updateAlertsQueueHTML();
     updateStatsHeader();
@@ -143,6 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`/api/edge-status?tenant_id=${tenantId}`);
             if (res.ok) {
                 const data = await res.json();
+                isEdgeOnline = data.online;
+                updateActiveStreams();
+                
                 const dot = document.querySelector('.pulse-dot');
                 const text = document.querySelector('.status-text');
                 if (dot && text) {
@@ -153,6 +284,29 @@ document.addEventListener('DOMContentLoaded', () => {
                         dot.className = "pulse-dot red";
                         text.innerHTML = "Edge Node: <strong>Desconectado</strong>";
                     }
+                }
+                
+                // Update single fallback visibility
+                const offlinePlaceholder = document.getElementById('offline-placeholder');
+                if (offlinePlaceholder) {
+                    const cam = cameraList.find(c => c.id === activeCameraId);
+                    const isCamOnline = cam && (cam.status === 'online' || cam.status === 'warning') && isEdgeOnline;
+                    offlinePlaceholder.style.display = isCamOnline ? 'none' : 'flex';
+                }
+                
+                // Update grid placeholders visibility
+                if (viewMode === 'grid') {
+                    cameraList.forEach(cam => {
+                        const gridOffline = document.getElementById(`grid-offline-${cam.id}`);
+                        if (gridOffline) {
+                            const isCamOnline = (cam.status === 'online' || cam.status === 'warning') && isEdgeOnline;
+                            gridOffline.style.display = isCamOnline ? 'none' : 'flex';
+                            const statusText = gridOffline.querySelector('p');
+                            if (statusText) {
+                                statusText.innerText = !isEdgeOnline ? 'Edge Node Desconectado' : 'Fluxo RTSP Indisponível';
+                            }
+                        }
+                    });
                 }
             }
         } catch (e) {
@@ -318,10 +472,20 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Allow clicking child elements (indicator dot)
             const targetBtn = e.target.closest('.cam-select-btn');
-            targetBtn.classList.add('active');
+            targetBtn.className = 'cam-select-btn active';
             
             const camId = parseInt(targetBtn.getAttribute('data-cam'));
             activeCameraId = camId;
+            
+            // Revert to single view when camera is selected directly
+            viewMode = 'single';
+            const modeSelector = document.getElementById('view-mode-selector');
+            if (modeSelector) modeSelector.value = 'single';
+            
+            const singleDisp = document.getElementById('video-display-single');
+            const gridDisp = document.getElementById('video-display-grid');
+            if (singleDisp) singleDisp.style.display = 'block';
+            if (gridDisp) gridDisp.style.display = 'none';
             
             // Load custom store layout for this camera and turn off edit mode
             loadCameraLayout(camId);
@@ -329,9 +493,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 stopEditingMode();
             }
             
-            const camData = cameraList[camId];
+            const camData = cameraList.find(c => c.id === camId) || cameraList[0];
             activeCamTitle.innerText = camData.name;
-            updateActiveCameraStream(camData);
+            updateActiveStreams();
             
             isSuspiciousActive = false;
             suspiciousPhase = 0;
@@ -572,271 +736,328 @@ document.addEventListener('DOMContentLoaded', () => {
         const W = videoCanvas.width;
         const H = videoCanvas.height;
 
+        // Initialize streams immediately
+        updateActiveStreams();
+
         function renderLive() {
             liveFrame++;
-            const camData = cameraList[activeCameraId];
-            if (!camData) {
-                ctx.fillStyle = '#060a12';
-                ctx.fillRect(0, 0, W, H);
-                ctx.fillStyle = '#475569';
-                ctx.font = '14px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText("Nenhuma câmera cadastrada neste perfil.", W / 2, H / 2 - 10);
-                ctx.fillText("Vá em 'Conectar Câmera' para iniciar o monitoramento.", W / 2, H / 2 + 15);
-                requestAnimationFrame(renderLive);
-                return;
-            }
-            ctx.textAlign = 'left'; // Reset alignment for standard rendering
-            updateActiveCameraStream(camData);
-            const isStreaming = realCamImage && realCamImage.complete && realCamImage.naturalWidth !== 0;
-
-            if (isStreaming) {
-                ctx.drawImage(realCamImage, 0, 0, W, H);
-            } else {
-                ctx.fillStyle = '#060a12';
-                ctx.fillRect(0, 0, W, H);
-
-                // Draw grid guidelines representing store structure
-                ctx.strokeStyle = '#111a2e';
-                ctx.lineWidth = 1;
-                for(let i = 0; i < W; i += 50) {
-                    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
-                }
-            }
-
-            if (!isStreaming) {
-                // Draw map elements dynamically
-                mapElements.forEach(el => {
-                if (el.type === 'shelf') {
-                    // Draw outer shelf container
-                    ctx.fillStyle = '#0f172a';
-                    ctx.fillRect(el.x, el.y, el.w, el.h);
-                    
-                    // Draw horizontal shelving layers
-                    ctx.fillStyle = '#1e293b';
-                    const shelfCount = 3;
-                    const spacing = el.h / (shelfCount + 1);
-                    for (let s = 1; s <= shelfCount; s++) {
-                        ctx.fillRect(el.x, el.y + (s * spacing), el.w, 10);
-                    }
-                    
-                    // Draw colorful products on shelves
-                    ctx.fillStyle = '#3b82f6'; ctx.fillRect(el.x + el.w*0.15, el.y + spacing*0.4, Math.max(10, el.w*0.1), spacing*0.5);
-                    ctx.fillStyle = '#10b981'; ctx.fillRect(el.x + el.w*0.4, el.y + spacing*0.4, Math.max(8, el.w*0.08), spacing*0.5);
-                    ctx.fillStyle = '#eab308'; ctx.fillRect(el.x + el.w*0.7, el.y + spacing*0.4, Math.max(12, el.w*0.11), spacing*0.5);
-                } else if (el.type === 'checkout_counter') {
-                    // Draw cash register counters
-                    ctx.fillStyle = '#0f172a';
-                    ctx.fillRect(el.x, el.y, el.w, el.h);
-                    
-                    // Draw conveyor belt
-                    ctx.fillStyle = '#020617';
-                    ctx.fillRect(el.x + el.w*0.05, el.y + el.h*0.15, el.w*0.7, el.h*0.4);
-                    
-                    // Draw scanner plate
-                    ctx.fillStyle = '#22d3ee';
-                    ctx.fillRect(el.x + el.w*0.5, el.y + el.h*0.35, el.w*0.1, el.h*0.15);
+            
+            // Check viewMode
+            if (viewMode === 'single') {
+                const camData = cameraList.find(c => c.id === activeCameraId);
+                const offlinePlaceholder = document.getElementById('offline-placeholder');
+                
+                if (!camData) {
+                    ctx.fillStyle = '#060a12';
+                    ctx.fillRect(0, 0, W, H);
+                    ctx.fillStyle = '#475569';
+                    ctx.font = '14px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText("Nenhuma câmera cadastrada neste perfil.", W / 2, H / 2 - 10);
+                    ctx.fillText("Vá em 'Conectar Câmera' para iniciar o monitoramento.", W / 2, H / 2 + 15);
+                    liveAnimId = requestAnimationFrame(renderLive);
+                    return;
                 }
                 
-                // Highlight active editing selections
-                if (isEditingMap) {
-                    ctx.strokeStyle = el.id === selectedElementId ? '#ff0055' : '#00f0ff';
-                    ctx.lineWidth = el.id === selectedElementId ? 2 : 1;
-                    ctx.setLineDash([5, 5]);
-                    ctx.strokeRect(el.x, el.y, el.w, el.h);
-                    ctx.setLineDash([]);
-                    
-                    ctx.fillStyle = el.id === selectedElementId ? '#ff0055' : '#00f0ff';
-                    ctx.font = '10px sans-serif';
-                    ctx.fillText(el.name || (el.type === 'shelf' ? 'Gôndola' : 'Caixa'), el.x, el.y - 6);
-                    
-                    if (el.id === selectedElementId) {
-                        ctx.fillStyle = '#ff0055';
-                        ctx.beginPath();
-                        ctx.arc(el.x + el.w, el.y + el.h, 6, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
+                const isCamOnline = (camData.status === 'online' || camData.status === 'warning') && isEdgeOnline;
+                if (offlinePlaceholder) {
+                    offlinePlaceholder.style.display = isCamOnline ? 'none' : 'flex';
                 }
-            });
-
-            // Map editor top notification overlay
-            if (isEditingMap) {
-                ctx.fillStyle = 'rgba(111, 67, 255, 0.9)';
-                ctx.fillRect(0, 0, W, 30);
-                ctx.fillStyle = '#fff';
-                ctx.font = 'bold 11px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText("MODO DE EDIÇÃO DO MAPA DA LOJA - ARRASTE E REDIMENSIONE AS GÔNDOLAS E CAIXAS", W/2, 19);
-                ctx.textAlign = 'start';
-            }
-
-            const camData = cameraList[activeCameraId];
-
-            // Handle Normal / Suspicious Simulation
-            if (!isSuspiciousActive) {
-                // Casual walking paths avoiding elements or walking corridors
-                const cycle = (liveFrame % 300) / 300;
-                let px = W/2 + Math.sin(cycle * Math.PI * 2) * 100;
-                let py = H/2 + Math.cos(cycle * Math.PI * 2) * 40 + 50;
-
-                drawTrackObject(ctx, px, py, 120, "Pessoa #187", '#00f0ff');
-                detectionNotice.classList.remove('active');
-                detectionNotice.innerText = "Nenhuma atividade suspeita no momento";
-            } else {
-                const simType = simTypeSelector.value;
-                const timeline = liveFrame % 380;
                 
-                if (simType === 'concealment') {
-                    // CONCEALMENT SIMULATION (Dynamic target from elements list)
-                    let px = W / 2, py = H - 50, actionState = 'walk';
+                if (isCamOnline) {
+                    ctx.textAlign = 'left';
+                    const img = cameraStreams[camData.id];
+                    const isStreaming = img && img.complete && img.naturalWidth !== 0;
                     
-                    const targetShelf = mapElements.find(item => item.type === 'shelf');
-                    let targetX = 320, targetY = 220;
-                    if (targetShelf) {
-                        targetX = targetShelf.x + targetShelf.w + 40;
-                        targetY = targetShelf.y + targetShelf.h / 2;
+                    if (isStreaming) {
+                        ctx.drawImage(img, 0, 0, W, H);
                     } else {
-                        const targetCheckout = mapElements.find(item => item.type === 'checkout_counter');
-                        if (targetCheckout) {
-                            targetX = targetCheckout.x + targetCheckout.w / 2;
-                            targetY = targetCheckout.y - 40;
-                        }
-                    }
-
-                    if (timeline < 100) {
-                        px = W/2 - (W/2 - targetX) * (timeline / 100);
-                        py = H - 50 - (H - 50 - targetY) * (timeline / 100);
-                    } else if (timeline < 220) {
-                        px = targetX; py = targetY; actionState = 'reach';
-                    } else if (timeline < 300) {
-                        px = targetX; py = targetY; actionState = 'conceal';
-                    } else {
-                        px = targetX + (W/2 - targetX) * ((timeline - 300) / 80);
-                        py = targetY + (H - 50 - targetY) * ((timeline - 300) / 80);
-                        actionState = 'leave';
-                    }
-
-                    let trackColor = '#00f0ff';
-                    if (actionState === 'reach') {
-                        trackColor = '#ff9f00';
-                        detectionNotice.classList.remove('active');
-                        detectionNotice.innerText = "[ALERTA INTERNO] Tempo de permanência na seção cara elevado";
-                    } else if (actionState === 'conceal') {
-                        trackColor = '#ff0055';
-                        detectionNotice.classList.add('active');
-                        detectionNotice.innerText = `⚠ ALERTA CRÍTICO: Ocultamento suspeito de objeto (Confiança: 89%)`;
-                        if (timeline === 225) triggerNewAlert("concealment");
-                    } else if (actionState === 'leave') {
-                        trackColor = '#ff0055';
-                    }
-                    drawTrackObject(ctx, px, py, 110, "Pessoa #194", trackColor, actionState);
-
-                } else if (simType === 'lingering') {
-                    // LINGERING SIMULATION (stands next to target shelf or register)
-                    const targetShelf = mapElements.find(item => item.type === 'shelf');
-                    let px = 320, py = 220;
-                    if (targetShelf) {
-                        px = targetShelf.x + targetShelf.w + 40;
-                        py = targetShelf.y + targetShelf.h / 2;
-                    } else {
-                        const targetCheckout = mapElements.find(item => item.type === 'checkout_counter');
-                        if (targetCheckout) {
-                            px = targetCheckout.x + targetCheckout.w / 2;
-                            py = targetCheckout.y - 40;
-                        }
-                    }
-                    
-                    let trackColor = '#00f0ff';
-                    let label = "Pessoa #199";
-
-                    if (timeline > 120) {
-                        trackColor = '#ff9f00';
-                        detectionNotice.classList.add('active');
-                        detectionNotice.innerText = `⚠ ALERTA: Tempo de permanência anormal na adega: ${Math.round(timeline/10)}s`;
-                        if (timeline === 200) triggerNewAlert("lingering");
-                    }
-                    drawTrackObject(ctx, px, py, 110, label, trackColor, 'stand');
-
-                } else if (simType === 'running') {
-                    // RUNNING SIMULATION
-                    let px = 50 + (timeline / 380) * (W - 100);
-                    let py = H/2 + 50;
-                    let trackColor = '#ff0055';
-                    detectionNotice.classList.add('active');
-                    detectionNotice.innerText = `⚠ ALERTA CRÍTICO: Pessoa correndo no corredor (Velocidade Anormal)`;
-                    if (timeline === 100) triggerNewAlert("running");
-                    drawTrackObject(ctx, px, py, 110, "Pessoa #205", trackColor, 'run');
-
-                } else if (simType === 'fall') {
-                    // CUSTOMER FALL
-                    let px = W/2;
-                    let py = H/2 + 80;
-                    let trackColor = '#ff9f00';
-
-                    if (timeline < 120) {
-                        px = W/2 - 80 + timeline*0.8;
-                        drawTrackObject(ctx, px, py, 110, "Pessoa #211", '#00f0ff', 'walk');
-                    } else {
-                        trackColor = '#ff0055';
-                        detectionNotice.classList.add('active');
-                        detectionNotice.innerText = `⚠ ALERTA DE EMERGÊNCIA: Queda de cliente detectada no Corredor 2`;
-                        if (timeline === 125) triggerNewAlert("fall");
+                        ctx.fillStyle = '#060a12';
+                        ctx.fillRect(0, 0, W, H);
                         
-                        ctx.strokeStyle = trackColor;
-                        ctx.lineWidth = 2;
-                        ctx.strokeRect(px - 60, py - 10, 120, 40);
-                        ctx.fillStyle = trackColor;
-                        ctx.fillRect(px - 60, py - 30, 90, 20);
-                        ctx.fillStyle = '#000';
-                        ctx.font = 'bold 9px monospace';
-                        ctx.fillText("Queda #211 (94%)", px - 56, py - 16);
-                        
-                        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                        // Draw grid guidelines representing store structure
+                        ctx.strokeStyle = '#111a2e';
                         ctx.lineWidth = 1;
-                        ctx.beginPath(); ctx.arc(px - 40, py + 10, 5, 0, Math.PI*2); ctx.stroke();
-                        ctx.beginPath(); ctx.moveTo(px - 35, py + 10); ctx.lineTo(px + 20, py + 10); ctx.stroke();
-                    }
-
-                } else if (simType === 'shelf') {
-                    // EMPTY SHELF DETECTION (Targets first custom shelf)
-                    const targetShelf = mapElements.find(item => item.type === 'shelf');
-                    let sx = 110, sy = 160, sw = 140, sh = 60;
-                    if (targetShelf) {
-                        sx = targetShelf.x + targetShelf.w * 0.1;
-                        sy = targetShelf.y + targetShelf.h * 0.3;
-                        sw = targetShelf.w * 0.8;
-                        sh = targetShelf.h * 0.2;
+                        for(let i = 0; i < W; i += 50) {
+                            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
+                        }
                     }
                     
-                    detectionNotice.classList.add('active');
-                    detectionNotice.innerText = `⚠ OPERACIONAL: Gôndola vazia detectada no Corredor 1 (Nível 2)`;
-                    if (timeline === 100) triggerNewAlert("shelf");
+                    if (!isStreaming) {
+                        // Draw map elements dynamically
+                        mapElements.forEach(el => {
+                            if (el.type === 'shelf') {
+                                // Draw outer shelf container
+                                ctx.fillStyle = '#0f172a';
+                                ctx.fillRect(el.x, el.y, el.w, el.h);
+                                
+                                // Draw horizontal shelving layers
+                                ctx.fillStyle = '#1e293b';
+                                const shelfCount = 3;
+                                const spacing = el.h / (shelfCount + 1);
+                                for (let s = 1; s <= shelfCount; s++) {
+                                    ctx.fillRect(el.x, el.y + (s * spacing), el.w, 10);
+                                }
+                                
+                                // Draw colorful products on shelves
+                                ctx.fillStyle = '#3b82f6'; ctx.fillRect(el.x + el.w*0.15, el.y + spacing*0.4, Math.max(10, el.w*0.1), spacing*0.5);
+                                ctx.fillStyle = '#10b981'; ctx.fillRect(el.x + el.w*0.4, el.y + spacing*0.4, Math.max(8, el.w*0.08), spacing*0.5);
+                                ctx.fillStyle = '#eab308'; ctx.fillRect(el.x + el.w*0.7, el.y + spacing*0.4, Math.max(12, el.w*0.11), spacing*0.5);
+                            } else if (el.type === 'checkout_counter') {
+                                // Draw cash register counters
+                                ctx.fillStyle = '#0f172a';
+                                ctx.fillRect(el.x, el.y, el.w, el.h);
+                                
+                                // Draw conveyor belt
+                                ctx.fillStyle = '#020617';
+                                ctx.fillRect(el.x + el.w*0.05, el.y + el.h*0.15, el.w*0.7, el.h*0.4);
+                                
+                                // Draw scanner plate
+                                ctx.fillStyle = '#22d3ee';
+                                ctx.fillRect(el.x + el.w*0.5, el.y + el.h*0.35, el.w*0.1, el.h*0.15);
+                            }
+                            
+                            // Highlight active editing selections
+                            if (isEditingMap) {
+                                ctx.strokeStyle = el.id === selectedElementId ? '#ff0055' : '#00f0ff';
+                                ctx.lineWidth = el.id === selectedElementId ? 2 : 1;
+                                ctx.setLineDash([5, 5]);
+                                ctx.strokeRect(el.x, el.y, el.w, el.h);
+                                ctx.setLineDash([]);
+                                
+                                ctx.fillStyle = el.id === selectedElementId ? '#ff0055' : '#00f0ff';
+                                ctx.font = '10px sans-serif';
+                                ctx.fillText(el.name || (el.type === 'shelf' ? 'Gôndola' : 'Caixa'), el.x, el.y - 6);
+                                
+                                if (el.id === selectedElementId) {
+                                    ctx.fillStyle = '#ff0055';
+                                    ctx.beginPath();
+                                    ctx.arc(el.x + el.w, el.y + el.h, 6, 0, Math.PI * 2);
+                                    ctx.fill();
+                                }
+                            }
+                        });
 
-                    ctx.strokeStyle = '#ff9f00';
-                    ctx.lineWidth = 1.5;
-                    ctx.setLineDash([4, 4]);
-                    ctx.strokeRect(sx, sy, sw, sh);
-                    ctx.setLineDash([]);
-                    
-                    ctx.fillStyle = 'rgba(255, 159, 0, 0.2)';
-                    ctx.fillRect(sx, sy, sw, sh);
+                        // Map editor top notification overlay
+                        if (isEditingMap) {
+                            ctx.fillStyle = 'rgba(111, 67, 255, 0.9)';
+                            ctx.fillRect(0, 0, W, 30);
+                            ctx.fillStyle = '#fff';
+                            ctx.font = 'bold 11px sans-serif';
+                            ctx.textAlign = 'center';
+                            ctx.fillText("MODO DE EDIÇÃO DO MAPA DA LOJA - ARRASTE E REDIMENSIONE AS GÔNDOLAS E CAIXAS", W/2, 19);
+                            ctx.textAlign = 'start';
+                        }
+                    }
 
-                    ctx.fillStyle = '#ff9f00';
-                    ctx.fillRect(sx, sy - 18, 110, 18);
-                    ctx.fillStyle = '#000';
-                    ctx.font = 'bold 9px monospace';
-                    ctx.fillText("Gôndola Vazia (87%)", sx + 4, sy - 6);
+                    // Handle Normal / Suspicious Simulation
+                    if (!isSuspiciousActive) {
+                        const cycle = (liveFrame % 300) / 300;
+                        let px = W/2 + Math.sin(cycle * Math.PI * 2) * 100;
+                        let py = H/2 + Math.cos(cycle * Math.PI * 2) * 40 + 50;
+
+                        drawTrackObject(ctx, px, py, 120, "Pessoa #187", '#00f0ff');
+                        detectionNotice.classList.remove('active');
+                        detectionNotice.innerText = "Nenhuma atividade suspeita no momento";
+                    } else {
+                        const simType = simTypeSelector.value;
+                        const timeline = liveFrame % 380;
+                        
+                        if (simType === 'concealment') {
+                            let px = W / 2, py = H - 50, actionState = 'walk';
+                            const targetShelf = mapElements.find(item => item.type === 'shelf');
+                            let targetX = 320, targetY = 220;
+                            if (targetShelf) {
+                                targetX = targetShelf.x + targetShelf.w + 40;
+                                targetY = targetShelf.y + targetShelf.h / 2;
+                            } else {
+                                const targetCheckout = mapElements.find(item => item.type === 'checkout_counter');
+                                if (targetCheckout) {
+                                    targetX = targetCheckout.x + targetCheckout.w / 2;
+                                    targetY = targetCheckout.y - 40;
+                                }
+                            }
+
+                            if (timeline < 100) {
+                                px = W/2 - (W/2 - targetX) * (timeline / 100);
+                                py = H - 50 - (H - 50 - targetY) * (timeline / 100);
+                            } else if (timeline < 220) {
+                                px = targetX; py = targetY; actionState = 'reach';
+                            } else if (timeline < 300) {
+                                px = targetX; py = targetY; actionState = 'conceal';
+                            } else {
+                                px = targetX + (W/2 - targetX) * ((timeline - 300) / 80);
+                                py = targetY + (H - 50 - targetY) * ((timeline - 300) / 80);
+                                actionState = 'leave';
+                            }
+
+                            let trackColor = '#00f0ff';
+                            if (actionState === 'reach') {
+                                trackColor = '#ff9f00';
+                                detectionNotice.classList.remove('active');
+                                detectionNotice.innerText = "[ALERTA INTERNO] Tempo de permanência na seção cara elevado";
+                            } else if (actionState === 'conceal') {
+                                trackColor = '#ff0055';
+                                detectionNotice.classList.add('active');
+                                detectionNotice.innerText = `⚠ ALERTA CRÍTICO: Ocultamento suspeito de objeto (Confiança: 89%)`;
+                                if (timeline === 225) triggerNewAlert("concealment");
+                            } else if (actionState === 'leave') {
+                                trackColor = '#ff0055';
+                            }
+                            drawTrackObject(ctx, px, py, 110, "Pessoa #194", trackColor, actionState);
+
+                        } else if (simType === 'lingering') {
+                            const targetShelf = mapElements.find(item => item.type === 'shelf');
+                            let px = 320, py = 220;
+                            if (targetShelf) {
+                                px = targetShelf.x + targetShelf.w + 40;
+                                py = targetShelf.y + targetShelf.h / 2;
+                            } else {
+                                const targetCheckout = mapElements.find(item => item.type === 'checkout_counter');
+                                if (targetCheckout) {
+                                    px = targetCheckout.x + targetCheckout.w / 2;
+                                    py = targetCheckout.y - 40;
+                                }
+                            }
+                            
+                            let trackColor = '#00f0ff';
+                            let label = "Pessoa #199";
+
+                            if (timeline > 120) {
+                                trackColor = '#ff9f00';
+                                detectionNotice.classList.add('active');
+                                detectionNotice.innerText = `⚠ ALERTA: Tempo de permanência anormal na adega: ${Math.round(timeline/10)}s`;
+                                if (timeline === 200) triggerNewAlert("lingering");
+                            }
+                            drawTrackObject(ctx, px, py, 110, label, trackColor, 'stand');
+
+                        } else if (simType === 'running') {
+                            let px = 50 + (timeline / 380) * (W - 100);
+                            let py = H/2 + 50;
+                            let trackColor = '#ff0055';
+                            detectionNotice.classList.add('active');
+                            detectionNotice.innerText = `⚠ ALERTA CRÍTICO: Pessoa correndo no corredor (Velocidade Anormal)`;
+                            if (timeline === 100) triggerNewAlert("running");
+                            drawTrackObject(ctx, px, py, 110, "Pessoa #205", trackColor, 'run');
+
+                        } else if (simType === 'fall') {
+                            let px = W/2;
+                            let py = H/2 + 80;
+                            let trackColor = '#ff9f00';
+
+                            if (timeline < 120) {
+                                px = W/2 - 80 + timeline*0.8;
+                                drawTrackObject(ctx, px, py, 110, "Pessoa #211", '#00f0ff', 'walk');
+                            } else {
+                                trackColor = '#ff0055';
+                                detectionNotice.classList.add('active');
+                                detectionNotice.innerText = `⚠ ALERTA DE EMERGÊNCIA: Queda de cliente detectada no Corredor 2`;
+                                if (timeline === 125) triggerNewAlert("fall");
+                                
+                                ctx.strokeStyle = trackColor;
+                                ctx.lineWidth = 2;
+                                ctx.strokeRect(px - 60, py - 10, 120, 40);
+                                ctx.fillStyle = trackColor;
+                                ctx.fillRect(px - 60, py - 30, 90, 20);
+                                ctx.fillStyle = '#000';
+                                ctx.font = 'bold 9px monospace';
+                                ctx.fillText("Queda #211 (94%)", px - 56, py - 16);
+                                
+                                ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                                ctx.lineWidth = 1;
+                                ctx.beginPath(); ctx.arc(px - 40, py + 10, 5, 0, Math.PI*2); ctx.stroke();
+                                ctx.beginPath(); ctx.moveTo(px - 35, py + 10); ctx.lineTo(px + 20, py + 10); ctx.stroke();
+                            }
+
+                        } else if (simType === 'shelf') {
+                            const targetShelf = mapElements.find(item => item.type === 'shelf');
+                            let sx = 110, sy = 160, sw = 140, sh = 60;
+                            if (targetShelf) {
+                                sx = targetShelf.x + targetShelf.w * 0.1;
+                                sy = targetShelf.y + targetShelf.h * 0.3;
+                                sw = targetShelf.w * 0.8;
+                                sh = targetShelf.h * 0.2;
+                            }
+                            
+                            detectionNotice.classList.add('active');
+                            detectionNotice.innerText = `⚠ OPERACIONAL: Gôndola vazia detectada no Corredor 1 (Nível 2)`;
+                            if (timeline === 100) triggerNewAlert("shelf");
+
+                            ctx.strokeStyle = '#ff9f00';
+                            ctx.lineWidth = 1.5;
+                            ctx.setLineDash([4, 4]);
+                            ctx.strokeRect(sx, sy, sw, sh);
+                            ctx.setLineDash([]);
+                            
+                            ctx.fillStyle = 'rgba(255, 159, 0, 0.2)';
+                            ctx.fillRect(sx, sy, sw, sh);
+
+                            ctx.fillStyle = '#ff9f00';
+                            ctx.fillRect(sx, sy - 18, 110, 18);
+                            ctx.fillStyle = '#000';
+                            ctx.font = 'bold 9px monospace';
+                            ctx.fillText("Gôndola Vazia (87%)", sx + 4, sy - 6);
+                        }
+                    }
+
+                    // Draw timestamp overlay
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.font = '12px var(--font-body)';
+                    ctx.fillText(camData.name.toUpperCase(), 20, 35);
+                    ctx.font = '10px monospace';
+                    ctx.fillText(new Date().toLocaleString('pt-BR'), 20, 52);
                 }
+            } else {
+                // GRID VIEW RENDER LOOP
+                cameraList.forEach(cam => {
+                    const gridCanvas = document.getElementById(`grid-canvas-${cam.id}`);
+                    if (!gridCanvas) return;
+                    
+                    const gCtx = gridCanvas.getContext('2d');
+                    const gW = gridCanvas.width;
+                    const gH = gridCanvas.height;
+                    
+                    const isCamOnline = (cam.status === 'online' || cam.status === 'warning') && isEdgeOnline;
+                    
+                    if (isCamOnline) {
+                        const img = cameraStreams[cam.id];
+                        const isStreaming = img && img.complete && img.naturalWidth !== 0;
+                        
+                        if (isStreaming) {
+                            gCtx.drawImage(img, 0, 0, gW, gH);
+                        } else {
+                            gCtx.fillStyle = '#060a12';
+                            gCtx.fillRect(0, 0, gW, gH);
+                            
+                            // Draw grid guidelines representing store structure
+                            gCtx.strokeStyle = '#111a2e';
+                            gCtx.lineWidth = 1;
+                            for(let i = 0; i < gW; i += 30) {
+                                gCtx.beginPath(); gCtx.moveTo(i, 0); gCtx.lineTo(i, gH); gCtx.stroke();
+                            }
+                        }
+                        
+                        // If simulation active on this specific camera, draw bounding box
+                        if (isSuspiciousActive && cam.id === activeCameraId) {
+                            gCtx.strokeStyle = '#ff0055';
+                            gCtx.lineWidth = 1.5;
+                            gCtx.strokeRect(gW/3, gH/3, gW/3, gH/3);
+                            gCtx.fillStyle = '#ff0055';
+                            gCtx.fillRect(gW/3, gH/3 - 12, 60, 12);
+                            gCtx.fillStyle = '#000';
+                            gCtx.font = 'bold 7px sans-serif';
+                            gCtx.fillText("SUSPEITA", gW/3 + 3, gH/3 - 3);
+                        }
+                    }
+                    
+                    // Update overlaid timestamp
+                    const timeEl = document.getElementById(`grid-time-${cam.id}`);
+                    if (timeEl) {
+                        timeEl.innerText = new Date().toLocaleTimeString('pt-BR');
+                    }
+                });
             }
-            }
-
-            // Draw timestamp overlay
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.font = '12px var(--font-body)';
-            ctx.fillText(camData.name.toUpperCase(), 20, 35);
-            ctx.font = '10px monospace';
-            ctx.fillText(new Date().toLocaleString('pt-BR'), 20, 52);
-
+            
             liveAnimId = requestAnimationFrame(renderLive);
         }
         renderLive();
@@ -1122,7 +1343,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cameraList.length === 1) {
             activeCameraId = 0;
             activeCamTitle.innerText = camName;
-            updateActiveCameraStream(newCam);
+            updateActiveStreams();
         }
 
         rebuildCameraGridHTML();
@@ -1268,7 +1489,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const firstCam = cameraList[0];
                 if (firstCam) {
                     activeCamTitle.innerText = firstCam.name;
-                    updateActiveCameraStream(firstCam);
+                    updateActiveStreams();
                 }
             }
             
@@ -1361,28 +1582,48 @@ document.addEventListener('DOMContentLoaded', () => {
         
         cameraList.forEach((cam, idx) => {
             const btn = document.createElement('button');
-            btn.className = `cam-select-btn ${idx === activeCameraId ? 'active' : ''}`;
+            const isActive = (viewMode === 'single' && cam.id === activeCameraId);
+            btn.className = `cam-select-btn ${isActive ? 'active' : ''}`;
             btn.setAttribute('data-cam', cam.id);
             
             const indicatorClass = cam.status === 'online' ? 'online' : (cam.status === 'warning' ? 'warning' : 'offline');
             btn.innerHTML = `<span class="cam-indicator ${indicatorClass}"></span> ${cam.name}`;
             
             btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.cam-select-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
                 activeCameraId = cam.id;
+                viewMode = 'single';
+                const modeSelector = document.getElementById('view-mode-selector');
+                if (modeSelector) modeSelector.value = 'single';
+                
+                const singleDisp = document.getElementById('video-display-single');
+                const gridDisp = document.getElementById('video-display-grid');
+                if (singleDisp) singleDisp.style.display = 'block';
+                if (gridDisp) gridDisp.style.display = 'none';
+                
                 activeCamTitle.innerText = cam.name;
-                updateActiveCameraStream(cam);
+                
+                loadCameraLayout(cam.id);
+                if (typeof stopEditingMode === 'function') {
+                    stopEditingMode();
+                }
+                
+                updateActiveStreams();
+                rebuildCameraSelectorsHTML();
                 
                 isSuspiciousActive = false;
                 suspiciousPhase = 0;
                 detectionNotice.classList.remove('active');
                 detectionNotice.innerText = "Nenhuma atividade suspeita no momento";
+                
                 addLog(`Visualizando fluxo em tempo real: ${cam.name} (${cam.device}).`);
             });
             
             selectorsContainer.appendChild(btn);
         });
+        
+        if (viewMode === 'grid') {
+            rebuildVideoDisplayGridHTML();
+        }
     }
 
     async function loadCamerasFromDatabase() {
@@ -1413,11 +1654,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         const firstCam = cameraList[0];
                         if (firstCam) {
                             activeCamTitle.innerText = firstCam.name;
-                            updateActiveCameraStream(firstCam);
+                            updateActiveStreams();
                         }
                     } else {
                         activeCamTitle.innerText = "Nenhuma câmera conectada";
-                        if (realCamImage) realCamImage.src = "";
+                        cameraList.forEach(cam => {
+                            if (cameraStreams[cam.id]) cameraStreams[cam.id].src = "";
+                        });
                     }
                     
                     rebuildCameraGridHTML();
