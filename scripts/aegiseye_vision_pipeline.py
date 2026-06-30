@@ -33,7 +33,7 @@ frame_lock = threading.Lock()
 RTSP_URL = ""
 CAMERA_ID = ""
 CAMERA_NAME = ""
-TENANT_ID = "65244ad5-47c7-4905-89c9-0efad0e9d7b6" # João Pedro
+TENANT_ID = "a7974ee4-329c-4c06-a57a-0377bcae242e" # João Pedro
 N8N_WEBHOOK_URL = "http://144.91.121.55:5678/webhook/e5f6a7b8-cdbe-4712-a1f9-d892a01f30f6/webhook/aegiseye-alerts"
 
 # ROI definition (Normalized coordinates 0.0 - 1.0 representing a polygon area)

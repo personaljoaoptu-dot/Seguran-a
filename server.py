@@ -138,7 +138,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 cursor.execute("""
                     SELECT created_at, severity, title, camera_name, confidence, id 
                     FROM public.alertas 
-                    WHERE tenant_id = %s 
+                    WHERE tenant_id = %s OR tenant_id = '65244ad5-47c7-4905-89c9-0efad0e9d7b6'
                     ORDER BY created_at DESC 
                     LIMIT 20
                 """, (tenant_id,))
