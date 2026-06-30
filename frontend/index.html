@@ -105,35 +105,15 @@
                 <div class="live-grid">
                     <!-- Feed Column -->
                     <div class="feed-column">
-                        <div class="camera-selectors">
-                            <button class="cam-select-btn active" data-cam="0">
-                                <span class="cam-indicator online"></span>
-                                Corredor 1 (Mercearia)
-                            </button>
-                            <button class="cam-select-btn" data-cam="1">
-                                <span class="cam-indicator online"></span>
-                                Corredor 2 (Biscoitos)
-                            </button>
-                            <button class="cam-select-btn" data-cam="2">
-                                <span class="cam-indicator warning"></span>
-                                Bebidas Finas
-                            </button>
-                            <button class="cam-select-btn" data-cam="3">
-                                <span class="cam-indicator online"></span>
-                                Caixa 1
-                            </button>
-                            <button class="cam-select-btn" data-cam="4">
-                                <span class="cam-indicator online"></span>
-                                Caixa 2 (Autoatendimento)
-                            </button>
-                        </div>
-                        
                         <div class="video-container">
                             <div class="video-header">
                                 <div class="video-header-left" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
                                     <select id="view-mode-selector" class="sim-dropdown" style="min-width: 140px; font-weight: 600; padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--slate-700); background-color: var(--slate-950); color: var(--slate-200);">
                                         <option value="single">Visualização Única</option>
                                         <option value="grid">Visualização em Grade (VMS)</option>
+                                    </select>
+                                    <select id="camera-select-dropdown" class="sim-dropdown" style="min-width: 220px; font-weight: 600; padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--slate-700); background-color: var(--slate-950); color: var(--slate-200);">
+                                        <!-- Populado dinamicamente -->
                                     </select>
                                     <span class="camera-info-badge" id="active-cam-title">Corredor 1 (Mercearia)</span>
                                 </div>

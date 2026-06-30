@@ -466,15 +466,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- TAB 1: LIVE CANVAS VIDEO ENGINE ---
 
-    camButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            camButtons.forEach(b => b.classList.remove('active'));
-            
-            // Allow clicking child elements (indicator dot)
-            const targetBtn = e.target.closest('.cam-select-btn');
-            targetBtn.className = 'cam-select-btn active';
-            
-            const camId = parseInt(targetBtn.getAttribute('data-cam'));
+    const cameraSelectDropdown = document.getElementById('camera-select-dropdown');
+    if (cameraSelectDropdown) {
+        cameraSelectDropdown.addEventListener('change', (e) => {
+            const camId = parseInt(e.target.value);
             activeCameraId = camId;
             
             // Revert to single view when camera is selected directly
@@ -496,6 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const camData = cameraList.find(c => c.id === camId) || cameraList[0];
             activeCamTitle.innerText = camData.name;
             updateActiveStreams();
+            rebuildCameraSelectorsHTML();
             
             isSuspiciousActive = false;
             suspiciousPhase = 0;
@@ -504,7 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             addLog(`Visualizando fluxo em tempo real: ${camData.name} (${camData.device}).`);
         });
-    });
+    }
 
     sensitivitySlider.addEventListener('input', (e) => {
         sensitivityVal.innerText = `${e.target.value}%`;
@@ -1576,49 +1572,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function rebuildCameraSelectorsHTML() {
-        const selectorsContainer = document.querySelector('.camera-selectors');
-        if (!selectorsContainer) return;
-        selectorsContainer.innerHTML = '';
+        const dropdown = document.getElementById('camera-select-dropdown');
+        if (!dropdown) return;
+        dropdown.innerHTML = '';
         
-        cameraList.forEach((cam, idx) => {
-            const btn = document.createElement('button');
-            const isActive = (viewMode === 'single' && cam.id === activeCameraId);
-            btn.className = `cam-select-btn ${isActive ? 'active' : ''}`;
-            btn.setAttribute('data-cam', cam.id);
-            
-            const indicatorClass = cam.status === 'online' ? 'online' : (cam.status === 'warning' ? 'warning' : 'offline');
-            btn.innerHTML = `<span class="cam-indicator ${indicatorClass}"></span> ${cam.name}`;
-            
-            btn.addEventListener('click', (e) => {
-                activeCameraId = cam.id;
-                viewMode = 'single';
-                const modeSelector = document.getElementById('view-mode-selector');
-                if (modeSelector) modeSelector.value = 'single';
-                
-                const singleDisp = document.getElementById('video-display-single');
-                const gridDisp = document.getElementById('video-display-grid');
-                if (singleDisp) singleDisp.style.display = 'block';
-                if (gridDisp) gridDisp.style.display = 'none';
-                
-                activeCamTitle.innerText = cam.name;
-                
-                loadCameraLayout(cam.id);
-                if (typeof stopEditingMode === 'function') {
-                    stopEditingMode();
-                }
-                
-                updateActiveStreams();
-                rebuildCameraSelectorsHTML();
-                
-                isSuspiciousActive = false;
-                suspiciousPhase = 0;
-                detectionNotice.classList.remove('active');
-                detectionNotice.innerText = "Nenhuma atividade suspeita no momento";
-                
-                addLog(`Visualizando fluxo em tempo real: ${cam.name} (${cam.device}).`);
-            });
-            
-            selectorsContainer.appendChild(btn);
+        cameraList.forEach((cam) => {
+            const opt = document.createElement('option');
+            opt.value = cam.id;
+            const emoji = cam.status === 'online' ? '🟢' : (cam.status === 'warning' ? '🟡' : '🔴');
+            opt.innerText = `${emoji} ${cam.name}`;
+            if (cam.id === activeCameraId && viewMode === 'single') {
+                opt.selected = true;
+            }
+            dropdown.appendChild(opt);
         });
         
         if (viewMode === 'grid') {
