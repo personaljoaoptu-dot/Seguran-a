@@ -15,10 +15,15 @@ active_edge_nodes = {}
 PORT = 8000
 
 def get_db_connection():
-    # Try internal docker host first, then fall back to public IP
-    for host in ["postgres_db", "144.91.121.55"]:
+    import os
+    import pg8000
+    
+    hosts = ["postgres_db", "144.91.121.55"]
+    if not os.path.exists('/.dockerenv'):
+        hosts = ["144.91.121.55", "postgres_db"]
+        
+    for host in hosts:
         try:
-            import pg8000
             print(f"[DB] Tentando conectar ao host do banco: {host}...")
             conn = pg8000.connect(
                 host=host,

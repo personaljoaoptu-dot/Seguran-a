@@ -19,6 +19,33 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Drag-to-scroll for camera selectors
+    const selectors = document.querySelector('.camera-selectors');
+    if (selectors) {
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+        
+        selectors.addEventListener('mousedown', (e) => {
+            isDown = true;
+            startX = e.pageX - selectors.offsetLeft;
+            scrollLeft = selectors.scrollLeft;
+        });
+        selectors.addEventListener('mouseleave', () => {
+            isDown = false;
+        });
+        selectors.addEventListener('mouseup', () => {
+            isDown = false;
+        });
+        selectors.addEventListener('mousemove', (e) => {
+            if(!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - selectors.offsetLeft;
+            const walk = (x - startX) * 2;
+            selectors.scrollLeft = scrollLeft - walk;
+        });
+    }
+
     // --- STATE MANAGEMENT & VARIABLES ---
     let activeTab = 'live';
     let activeCameraId = 0;
@@ -31,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!realCamImage) {
                 realCamImage = new Image();
             }
-            const streamUrl = `http://127.0.0.1:8082/stream?rtsp=${encodeURIComponent(camData.rtsp)}`;
+            const streamUrl = `http://${window.location.hostname}:8082/stream?rtsp=${encodeURIComponent(camData.rtsp)}`;
             if (realCamImage.src !== streamUrl) {
                 realCamImage.src = streamUrl;
             }
