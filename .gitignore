@@ -16,5 +16,7 @@ Thumbs.db
 # Python & PyInstaller build directories
 __pycache__/
 build/
-dist/
+dist/*
+!dist/AegisEyeDesktopWeb.exe
 *.spec
+
