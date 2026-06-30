@@ -1,0 +1,54 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Deploy to Remote VPS",
+            "type": "shell",
+            "command": "python311\\python.exe",
+            "args": [
+                "scripts/deploy_remote.py"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Vision Pipeline (Simulate)",
+            "type": "shell",
+            "command": "python311\\python.exe",
+            "args": [
+                "scripts/aegiseye_vision_pipeline.py",
+                "--simulate"
+            ],
+            "group": "none",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run AegisEye Desktop",
+            "type": "shell",
+            "command": "python311\\python.exe",
+            "args": [
+                "AegisEyeDesktopWeb.py"
+            ],
+            "group": "none",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "shared",
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": []
+        }
+    ]
+}
