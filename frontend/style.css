@@ -367,30 +367,10 @@ h1, h2, h3, h4, h5, h6 {
     display: flex;
     gap: 8px;
     overflow-x: auto;
-    padding-bottom: 8px;
-    flex-shrink: 0;
-    width: 100%;
-    scrollbar-width: thin;
-    scrollbar-color: var(--slate-700) var(--slate-950);
-}
-
-.camera-selectors::-webkit-scrollbar {
-    height: 5px;
-}
-.camera-selectors::-webkit-scrollbar-track {
-    background: var(--slate-950);
-    border-radius: var(--radius-sm);
-}
-.camera-selectors::-webkit-scrollbar-thumb {
-    background: var(--slate-800);
-    border-radius: var(--radius-sm);
-}
-.camera-selectors::-webkit-scrollbar-thumb:hover {
-    background: var(--cyan-500);
+    padding-bottom: 4px;
 }
 
 .cam-select-btn {
-    flex-shrink: 0;
     background-color: var(--slate-900);
     border: 1px solid var(--slate-800);
     color: var(--slate-400);

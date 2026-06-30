@@ -104,6 +104,7 @@
             <section class="tab-view active" id="view-live">
                 <div class="live-grid">
                     <!-- Feed Column -->
+                    <div class="feed-column">
                         <div class="camera-selectors">
                             <button class="cam-select-btn active" data-cam="0">
                                 <span class="cam-indicator online"></span>
@@ -745,34 +746,6 @@
     </div>
 
 
-
-    <!-- Modal for Video Clip Review -->
-    <div class="modal" id="video-clip-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modal-alert-title">Rever Clipe de Alerta</h3>
-                <button class="close-modal" id="btn-close-modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="modal-video-wrapper">
-                    <canvas id="modal-video-canvas" width="640" height="360"></canvas>
-                    <div class="modal-detection-banner">DETECÇÃO DE SUSPEITA</div>
-                </div>
-                <div class="modal-meta-info">
-                    <p><strong>Câmera:</strong> <span id="modal-meta-camera">-</span></p>
-                    <p><strong>Detalhes:</strong> <span id="modal-meta-details">-</span></p>
-                    <p><strong>Heurística / Trigger:</strong> <span id="modal-meta-trigger">-</span></p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <span class="modal-footer-label">Este alerta é verdadeiro?</span>
-                <div class="modal-feedback-actions">
-                    <button class="action-btn btn-sm btn-success" id="btn-modal-confirm">Sim, Confirmar</button>
-                    <button class="action-btn btn-sm btn-danger" id="btn-modal-ignore">Não, Descartar</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Javascript Logic -->
     <script src="app.js?v=6"></script>
