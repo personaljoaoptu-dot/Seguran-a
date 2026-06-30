@@ -1518,35 +1518,97 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function selectCamera(camId) {
+        activeCameraId = camId;
+        const cam = cameraList.find(c => c.id === camId);
+        if (!cam) return;
+        
+        document.querySelectorAll('.cam-select-btn').forEach(b => {
+            if (parseInt(b.getAttribute('data-cam')) === camId) {
+                b.classList.add('active');
+            } else {
+                b.classList.remove('active');
+            }
+        });
+        
+        const dropdownSelect = document.getElementById('live-camera-dropdown');
+        if (dropdownSelect) {
+            dropdownSelect.value = camId;
+        }
+        
+        activeCamTitle.innerText = cam.name;
+        updateActiveCameraStream(cam);
+        
+        isSuspiciousActive = false;
+        suspiciousPhase = 0;
+        detectionNotice.classList.remove('active');
+        detectionNotice.innerText = "Nenhuma atividade suspeita no momento";
+        addLog(`Visualizando fluxo em tempo real: ${cam.name} (${cam.device}).`);
+    }
+
     function rebuildCameraSelectorsHTML() {
         const selectorsContainer = document.querySelector('.camera-selectors');
+        const dropdownContainer = document.getElementById('camera-dropdown-container');
+        const dropdownSelect = document.getElementById('live-camera-dropdown');
         if (!selectorsContainer) return;
+        
         selectorsContainer.innerHTML = '';
         
-        cameraList.forEach((cam, idx) => {
-            const btn = document.createElement('button');
-            btn.className = `cam-select-btn ${idx === activeCameraId ? 'active' : ''}`;
-            btn.setAttribute('data-cam', cam.id);
+        if (cameraList.length > 6) {
+            // Show dropdown container
+            if (dropdownContainer) dropdownContainer.style.display = 'block';
             
-            const indicatorClass = cam.status === 'online' ? 'online' : (cam.status === 'warning' ? 'warning' : 'offline');
-            btn.innerHTML = `<span class="cam-indicator ${indicatorClass}"></span> ${cam.name}`;
-            
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.cam-select-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                activeCameraId = cam.id;
-                activeCamTitle.innerText = cam.name;
-                updateActiveCameraStream(cam);
+            // Build dropdown options
+            if (dropdownSelect) {
+                dropdownSelect.innerHTML = '';
+                cameraList.forEach((cam, idx) => {
+                    const opt = document.createElement('option');
+                    opt.value = cam.id;
+                    opt.textContent = `${cam.status === 'online' ? '🟢' : (cam.status === 'warning' ? '🟡' : '🔴')} ${cam.name}`;
+                    if (idx === activeCameraId) opt.selected = true;
+                    dropdownSelect.appendChild(opt);
+                });
                 
-                isSuspiciousActive = false;
-                suspiciousPhase = 0;
-                detectionNotice.classList.remove('active');
-                detectionNotice.innerText = "Nenhuma atividade suspeita no momento";
-                addLog(`Visualizando fluxo em tempo real: ${cam.name} (${cam.device}).`);
+                // Add event listener to dropdown
+                dropdownSelect.onchange = (e) => {
+                    const camId = parseInt(e.target.value);
+                    selectCamera(camId);
+                };
+            }
+            
+            // Still render the first 3 cameras as quick buttons for convenience!
+            cameraList.slice(0, 3).forEach((cam, idx) => {
+                const btn = document.createElement('button');
+                btn.className = `cam-select-btn ${cam.id === activeCameraId ? 'active' : ''}`;
+                btn.setAttribute('data-cam', cam.id);
+                const indicatorClass = cam.status === 'online' ? 'online' : (cam.status === 'warning' ? 'warning' : 'offline');
+                btn.innerHTML = `<span class="cam-indicator ${indicatorClass}"></span> ${cam.name}`;
+                btn.onclick = () => {
+                    selectCamera(cam.id);
+                };
+                selectorsContainer.appendChild(btn);
             });
             
-            selectorsContainer.appendChild(btn);
-        });
+        } else {
+            // Hide dropdown container
+            if (dropdownContainer) dropdownContainer.style.display = 'none';
+            
+            // Build all buttons
+            cameraList.forEach((cam, idx) => {
+                const btn = document.createElement('button');
+                btn.className = `cam-select-btn ${idx === activeCameraId ? 'active' : ''}`;
+                btn.setAttribute('data-cam', cam.id);
+                
+                const indicatorClass = cam.status === 'online' ? 'online' : (cam.status === 'warning' ? 'warning' : 'offline');
+                btn.innerHTML = `<span class="cam-indicator ${indicatorClass}"></span> ${cam.name}`;
+                
+                btn.onclick = () => {
+                    selectCamera(cam.id);
+                };
+                
+                selectorsContainer.appendChild(btn);
+            });
+        }
     }
 
     async function loadCamerasFromDatabase() {

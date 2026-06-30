@@ -340,8 +340,7 @@ h1, h2, h3, h4, h5, h6 {
 /* Tabs Toggle */
 .tab-view {
     display: none;
-    flex-grow: 1;
-    height: 100%;
+    flex: 1 1 0;
     min-height: 0;
     overflow-y: auto;
 }
@@ -352,7 +351,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .tab-view#view-live {
-    overflow: hidden;
+    overflow-y: auto;
 }
 
 /* --- TAB 1: LIVE MONITOR GRID --- */
@@ -440,8 +439,8 @@ h1, h2, h3, h4, h5, h6 {
     flex-direction: column;
     gap: 12px;
     backdrop-filter: blur(10px);
-    flex: 1 1 0;
-    min-height: 0;
+    flex: 1 1 auto;
+    min-height: 380px;
 }
 
 .video-header {
@@ -680,8 +679,8 @@ h1, h2, h3, h4, h5, h6 {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    flex-grow: 1;
-    min-height: 120px;
+    flex-shrink: 0;
+    height: 160px;
 }
 
 .card-header {

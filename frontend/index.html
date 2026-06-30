@@ -105,27 +105,34 @@
                 <div class="live-grid">
                     <!-- Feed Column -->
                     <div class="feed-column">
-                        <div class="camera-selectors">
-                            <button class="cam-select-btn active" data-cam="0">
-                                <span class="cam-indicator online"></span>
-                                Corredor 1 (Mercearia)
-                            </button>
-                            <button class="cam-select-btn" data-cam="1">
-                                <span class="cam-indicator online"></span>
-                                Corredor 2 (Biscoitos)
-                            </button>
-                            <button class="cam-select-btn" data-cam="2">
-                                <span class="cam-indicator warning"></span>
-                                Bebidas Finas
-                            </button>
-                            <button class="cam-select-btn" data-cam="3">
-                                <span class="cam-indicator online"></span>
-                                Caixa 1
-                            </button>
-                            <button class="cam-select-btn" data-cam="4">
-                                <span class="cam-indicator online"></span>
-                                Caixa 2 (Autoatendimento)
-                            </button>
+                        <div class="camera-selectors-wrapper" style="display: flex; gap: 12px; align-items: center; width: 100%; flex-wrap: wrap; margin-bottom: 4px;">
+                            <div class="camera-selectors" style="display: flex; gap: 8px; flex-wrap: wrap; flex: 1;">
+                                <button class="cam-select-btn active" data-cam="0">
+                                    <span class="cam-indicator online"></span>
+                                    Corredor 1 (Mercearia)
+                                </button>
+                                <button class="cam-select-btn" data-cam="1">
+                                    <span class="cam-indicator online"></span>
+                                    Corredor 2 (Biscoitos)
+                                </button>
+                                <button class="cam-select-btn" data-cam="2">
+                                    <span class="cam-indicator warning"></span>
+                                    Bebidas Finas
+                                </button>
+                                <button class="cam-select-btn" data-cam="3">
+                                    <span class="cam-indicator online"></span>
+                                    Caixa 1
+                                </button>
+                                <button class="cam-select-btn" data-cam="4">
+                                    <span class="cam-indicator online"></span>
+                                    Caixa 2 (Autoatendimento)
+                                </button>
+                            </div>
+                            <div class="camera-dropdown-container" id="camera-dropdown-container" style="display: none;">
+                                <select id="live-camera-dropdown" class="sim-dropdown" style="min-width: 220px; font-weight: 600; border-color: var(--slate-700); background-color: var(--slate-950); color: var(--slate-200);">
+                                    <!-- Options populated dynamically -->
+                                </select>
+                            </div>
                         </div>
                         
                         <div class="video-container">
