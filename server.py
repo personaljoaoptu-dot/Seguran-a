@@ -169,6 +169,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         conn.close()
                     except Exception:
                         pass
+            return
         elif clean_path == '/api/edge-status':
             query_params = urllib.parse.parse_qs(parsed_url.query)
             tenant_id = query_params.get('tenant_id', [''])[0].strip()

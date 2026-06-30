@@ -186,7 +186,7 @@ if __name__ == '__main__':
     # Create webview window loading from the local HTTP streamer server
     window = webview.create_window(
         title='AegisEye AI - Loss Prevention Monitor Extension', 
-        url='http://127.0.0.1:8082/', 
+        url='http://localhost:8082/', 
         js_api=api,
         width=900, 
         height=550, 

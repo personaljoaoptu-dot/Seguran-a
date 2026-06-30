@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function getStreamHost() {
         const host = window.location.hostname;
         if (host === 'app.aegiseye.com.br' || host === '144.91.121.55') {
-            return '127.0.0.1';
+            return 'localhost';
         }
         return host;
     }
@@ -282,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 1500);
-            await fetch(`http://127.0.0.1:8082/`, { 
+            await fetch(`http://localhost:8082/`, { 
                 method: 'GET', 
                 mode: 'no-cors',
                 signal: controller.signal 

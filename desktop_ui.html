@@ -701,7 +701,7 @@
 
             const cam = state.cameras[camIndex];
             if (cam && cam.rtsp && cam.rtsp.startsWith('rtsp://')) {
-                player.src = `http://127.0.0.1:8082/stream_ai?rtsp=${encodeURIComponent(cam.rtsp)}`;
+                player.src = `http://localhost:8082/stream_ai?rtsp=${encodeURIComponent(cam.rtsp)}`;
                 player.style.display = 'block';
                 placeholder.style.display = 'none';
             } else {
