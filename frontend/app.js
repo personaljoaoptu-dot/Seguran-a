@@ -275,50 +275,69 @@ document.addEventListener('DOMContentLoaded', () => {
     async function checkEdgeStatus() {
         const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
         if (!tenantId) return;
+        
+        let online = false;
+        
+        // 1. Try to ping local streamer directly (latency check)
         try {
-            const res = await fetch(`/api/edge-status?tenant_id=${tenantId}`);
-            if (res.ok) {
-                const data = await res.json();
-                isEdgeOnline = data.online;
-                updateActiveStreams();
-                
-                const dot = document.querySelector('.pulse-dot');
-                const text = document.querySelector('.status-text');
-                if (dot && text) {
-                    if (data.online) {
-                        dot.className = "pulse-dot green";
-                        text.innerHTML = "Edge Node: <strong>Conectado</strong>";
-                    } else {
-                        dot.className = "pulse-dot red";
-                        text.innerHTML = "Edge Node: <strong>Desconectado</strong>";
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 1500);
+            await fetch(`http://127.0.0.1:8082/`, { 
+                method: 'GET', 
+                mode: 'no-cors',
+                signal: controller.signal 
+            });
+            clearTimeout(timeoutId);
+            online = true;
+        } catch (localErr) {
+            // Local streamer not running or unreachable, fallback to server check
+            try {
+                const res = await fetch(`/api/edge-status?tenant_id=${tenantId}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    online = data.online;
+                }
+            } catch (serverErr) {
+                online = false;
+            }
+        }
+        
+        isEdgeOnline = online;
+        updateActiveStreams();
+        
+        const dot = document.querySelector('.pulse-dot');
+        const text = document.querySelector('.status-text');
+        if (dot && text) {
+            if (online) {
+                dot.className = "pulse-dot green";
+                text.innerHTML = "Edge Node: <strong>Conectado</strong>";
+            } else {
+                dot.className = "pulse-dot red";
+                text.innerHTML = "Edge Node: <strong>Desconectado</strong>";
+            }
+        }
+        
+        // Update single fallback visibility
+        const offlinePlaceholder = document.getElementById('offline-placeholder');
+        if (offlinePlaceholder) {
+            const cam = cameraList.find(c => c.id === activeCameraId);
+            const isCamOnline = cam && (cam.status === 'online' || cam.status === 'warning') && isEdgeOnline;
+            offlinePlaceholder.style.display = isCamOnline ? 'none' : 'flex';
+        }
+        
+        // Update grid placeholders visibility
+        if (viewMode === 'grid') {
+            cameraList.forEach(cam => {
+                const gridOffline = document.getElementById(`grid-offline-${cam.id}`);
+                if (gridOffline) {
+                    const isCamOnline = (cam.status === 'online' || cam.status === 'warning') && isEdgeOnline;
+                    gridOffline.style.display = isCamOnline ? 'none' : 'flex';
+                    const statusText = gridOffline.querySelector('p');
+                    if (statusText) {
+                        statusText.innerText = !isEdgeOnline ? 'Edge Node Desconectado' : 'Fluxo RTSP Indisponível';
                     }
                 }
-                
-                // Update single fallback visibility
-                const offlinePlaceholder = document.getElementById('offline-placeholder');
-                if (offlinePlaceholder) {
-                    const cam = cameraList.find(c => c.id === activeCameraId);
-                    const isCamOnline = cam && (cam.status === 'online' || cam.status === 'warning') && isEdgeOnline;
-                    offlinePlaceholder.style.display = isCamOnline ? 'none' : 'flex';
-                }
-                
-                // Update grid placeholders visibility
-                if (viewMode === 'grid') {
-                    cameraList.forEach(cam => {
-                        const gridOffline = document.getElementById(`grid-offline-${cam.id}`);
-                        if (gridOffline) {
-                            const isCamOnline = (cam.status === 'online' || cam.status === 'warning') && isEdgeOnline;
-                            gridOffline.style.display = isCamOnline ? 'none' : 'flex';
-                            const statusText = gridOffline.querySelector('p');
-                            if (statusText) {
-                                statusText.innerText = !isEdgeOnline ? 'Edge Node Desconectado' : 'Fluxo RTSP Indisponível';
-                            }
-                        }
-                    });
-                }
-            }
-        } catch (e) {
-            console.error("Error fetching edge status:", e);
+            });
         }
     }
     checkEdgeStatus();
