@@ -30,6 +30,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // Map of camera stream images
     const cameraStreams = {};
 
+    function getStreamHost() {
+        const host = window.location.hostname;
+        if (host === 'app.aegiseye.com.br' || host === '144.91.121.55') {
+            return '127.0.0.1';
+        }
+        return host;
+    }
+
     function updateActiveStreams() {
         cameraList.forEach(cam => {
             if (!cameraStreams[cam.id]) {
@@ -44,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const shouldLoad = (viewMode === 'grid') || (viewMode === 'single' && cam.id === activeCameraId);
                 
                 if (shouldLoad) {
-                    const streamUrl = `http://${window.location.hostname}:8082/stream?rtsp=${encodeURIComponent(cam.rtsp)}`;
+                    const streamUrl = `http://${getStreamHost()}:8082/stream?rtsp=${encodeURIComponent(cam.rtsp)}`;
                     if (img.src !== streamUrl) {
                         img.src = streamUrl;
                     }
