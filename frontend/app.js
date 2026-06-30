@@ -1132,7 +1132,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function triggerNewAlert(type = "concealment") {
+        // Disable mock simulated alerts when the local edge node is online
+        if (isEdgeOnline) {
+            console.log("[AI] Mock alert skipped because active Edge AI node is online.");
+            return;
+        }
+
         const camData = cameraList[activeCameraId];
+        if (!camData) return;
         let title = "Ação suspeita detectada";
         let details = "Comportamento incomum monitorado.";
         let severity = "critical";
