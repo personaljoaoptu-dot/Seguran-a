@@ -1056,6 +1056,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- TAB 3: CONNECT NEW CAMERA FORM ---
+    
+    // Tab switching for Camera Configuration Add Panel
+    const tabSingleCamera = document.getElementById('tab-single-camera');
+    const tabBatchDvr = document.getElementById('tab-batch-dvr');
+    const singleFormContainer = document.getElementById('single-camera-form-container');
+    const batchFormContainer = document.getElementById('batch-dvr-form-container');
+    
+    if (tabSingleCamera && tabBatchDvr) {
+        tabSingleCamera.addEventListener('click', () => {
+            tabSingleCamera.classList.add('active');
+            tabBatchDvr.classList.remove('active');
+            singleFormContainer.style.display = 'block';
+            batchFormContainer.style.display = 'none';
+        });
+        
+        tabBatchDvr.addEventListener('click', () => {
+            tabBatchDvr.classList.add('active');
+            tabSingleCamera.classList.remove('active');
+            batchFormContainer.style.display = 'block';
+            singleFormContainer.style.display = 'none';
+        });
+    }
+    
+    const dvrBrandSelect = document.getElementById('dvr-brand');
+    const customUrlRow = document.getElementById('custom-url-row');
+    if (dvrBrandSelect && customUrlRow) {
+        dvrBrandSelect.addEventListener('change', () => {
+            if (dvrBrandSelect.value === 'custom') {
+                customUrlRow.style.display = 'block';
+            } else {
+                customUrlRow.style.display = 'none';
+            }
+        });
+    }
+
+    // Submit handler for Single Camera Form
     cameraAddForm.addEventListener('submit', (e) => {
         e.preventDefault();
         
@@ -1124,6 +1160,128 @@ document.addEventListener('DOMContentLoaded', () => {
 
         cameraAddForm.reset();
     });
+
+    // Submit handler for Batch DVR Form
+    const cameraBatchForm = document.getElementById('camera-batch-form');
+    if (cameraBatchForm) {
+        cameraBatchForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const brand = document.getElementById('dvr-brand').value;
+            const ip = document.getElementById('dvr-ip').value.trim();
+            const port = document.getElementById('dvr-port').value.trim();
+            const user = document.getElementById('dvr-user').value.trim();
+            const pass = document.getElementById('dvr-pass').value.trim();
+            const startCh = parseInt(document.getElementById('dvr-start-ch').value);
+            const endCh = parseInt(document.getElementById('dvr-end-ch').value);
+            const profile = document.getElementById('dvr-profile').value;
+            const customPattern = document.getElementById('dvr-custom-pattern').value.trim();
+            
+            if (!ip || !port || !user || !pass || isNaN(startCh) || isNaN(endCh)) {
+                addLog('Preencha todos os campos obrigatórios do DVR.', 'error');
+                return;
+            }
+            
+            if (startCh > endCh) {
+                addLog('O canal inicial não pode ser maior que o canal final.', 'error');
+                return;
+            }
+            
+            const totalToImport = endCh - startCh + 1;
+            addLog(`[DVR] Iniciando importação em lote de ${totalToImport} canais...`, 'info');
+            
+            const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
+            let completedCount = 0;
+            
+            for (let ch = startCh; ch <= endCh; ch++) {
+                let rtspUrl = '';
+                if (brand === 'intelbras') {
+                    rtspUrl = `rtsp://${user}:${pass}@${ip}:${port}/cam/realmonitor?channel=${ch}&subtype=0`;
+                } else if (brand === 'hikvision') {
+                    rtspUrl = `rtsp://${user}:${pass}@${ip}:${port}/Streaming/Channels/${ch}01`;
+                } else if (brand === 'hikvision_av') {
+                    rtspUrl = `rtsp://${user}:${pass}@${ip}:${port}/h264/ch${ch}/main/av_stream`;
+                } else if (brand === 'custom') {
+                    rtspUrl = customPattern
+                        .replace(/{channel}/g, ch)
+                        .replace(/{ip}/g, ip)
+                        .replace(/{port}/g, port)
+                        .replace(/{user}/g, user)
+                        .replace(/{pass}/g, pass);
+                }
+                
+                const camName = `Canal ${ch} - DVR (${brand.toUpperCase()})`;
+                const newId = cameraList.length;
+                const newCam = {
+                    id: newId,
+                    name: camName,
+                    status: "online",
+                    device: `DVR ${brand.toUpperCase()} - Canal ${ch}`,
+                    rtsp: rtspUrl,
+                    profile: profile,
+                    type: 'aisle'
+                };
+                
+                cameraList.push(newCam);
+                
+                if (tenantId) {
+                    const payload = {
+                        action: 'add_camera',
+                        tenant_id: tenantId,
+                        name: camName,
+                        device: `DVR ${brand.toUpperCase()} - Canal ${ch}`,
+                        rtsp: rtspUrl,
+                        profile: profile,
+                        type: 'aisle',
+                        status: 'online'
+                    };
+                    
+                    fetch('/api/configurar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        const responseData = Array.isArray(data) ? data[0] : data;
+                        if (responseData && responseData.id) {
+                            newCam.db_id = responseData.id;
+                        }
+                        completedCount++;
+                        addLog(`[DVR] Canal ${ch} importado com sucesso para o banco.`, 'success');
+                        if (completedCount === totalToImport) {
+                            addLog(`[DVR] Sucesso! Todos os ${totalToImport} canais foram integrados.`, 'success');
+                        }
+                    })
+                    .catch(err => {
+                        console.error(`Erro ao salvar canal ${ch}:`, err);
+                        addLog(`[DVR Erro] Falha ao importar Canal ${ch} no banco de dados.`, 'error');
+                    });
+                } else {
+                    addLog(`[DVR Simulação] Canal ${ch} adicionado localmente.`, 'success');
+                }
+            }
+            
+            // Set first channel as active if camera list was previously empty
+            if (cameraList.length === totalToImport) {
+                activeCameraId = 0;
+                const firstCam = cameraList[0];
+                if (firstCam) {
+                    activeCamTitle.innerText = firstCam.name;
+                    updateActiveCameraStream(firstCam);
+                }
+            }
+            
+            // Rebuild views with a small delay for DB sync
+            setTimeout(() => {
+                rebuildCameraGridHTML();
+                rebuildCameraSelectorsHTML();
+            }, 1000);
+            
+            cameraBatchForm.reset();
+            if (customUrlRow) customUrlRow.style.display = 'none';
+        });
+    }
 
     function rebuildCameraGridHTML() {
         cameraGrid.innerHTML = '';

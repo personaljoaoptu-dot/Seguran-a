@@ -1668,3 +1668,38 @@ h1, h2, h3, h4, h5, h6 {
     border-color: var(--slate-700);
     color: var(--white);
 }
+
+/* --- BATCH DVR IMPORT TABS --- */
+.camera-add-card .form-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--slate-850);
+    padding-bottom: 10px;
+}
+
+.camera-add-card .form-tab-btn {
+    background: none;
+    border: none;
+    color: var(--slate-400);
+    font-family: var(--font-heading);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    transition: all 0.2s ease;
+}
+
+.camera-add-card .form-tab-btn:hover {
+    color: var(--white);
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.camera-add-card .form-tab-btn.active {
+    color: var(--cyan-500);
+    background-color: var(--slate-950);
+    border: 1px solid var(--slate-850);
+    box-shadow: inset 0 0 5px rgba(0, 240, 255, 0.1);
+}
+

@@ -490,46 +490,123 @@
                     
                     <!-- Camera Add Form -->
                     <div class="camera-add-card">
-                        <h3>Adicionar Nova Câmera IP / Canal DVR</h3>
-                        <p class="card-subtitle">Conecte um novo fluxo de vídeo RTSP e selecione as diretrizes de IA</p>
+                        <h3>Adicionar Câmeras</h3>
+                        <p class="card-subtitle">Conecte novos fluxos de vídeo RTSP para análise de IA</p>
                         
-                        <form class="camera-form" id="camera-add-form" onsubmit="return false;">
-                            <div class="form-group">
-                                <label for="cam-name">Nome Descritivo da Câmera</label>
-                                <input type="text" id="cam-name" placeholder="Ex: Corredor 3 (Limpeza)" required>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label for="cam-rtsp">URL RTSP do Vídeo</label>
-                                <input type="text" id="cam-rtsp" placeholder="Ex: rtsp://admin:senha@192.168.1.100:554/live/ch1" required>
-                            </div>
-                            
-                            <div class="form-row">
-                                <div class="form-group half">
-                                    <label for="cam-device">Marca / Modelo do Aparelho</label>
-                                    <select id="cam-device">
-                                        <option value="Intelbras VIP">Intelbras VIP Series</option>
-                                        <option value="Hikvision DS">Hikvision Bullet/Dome</option>
-                                        <option value="Dahua HDW">Dahua Network Camera</option>
-                                        <option value="ONVIF Genérica">Genérica ONVIF IP Cam</option>
+                        <div class="form-tabs">
+                            <button class="form-tab-btn active" id="tab-single-camera">Câmera Única</button>
+                            <button class="form-tab-btn" id="tab-batch-dvr">Importar DVR (Lote)</button>
+                        </div>
+                        
+                        <!-- Single Camera Form -->
+                        <div id="single-camera-form-container">
+                            <form class="camera-form" id="camera-add-form" onsubmit="return false;">
+                                <div class="form-group">
+                                    <label for="cam-name">Nome Descritivo da Câmera</label>
+                                    <input type="text" id="cam-name" placeholder="Ex: Corredor 3 (Limpeza)" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="cam-rtsp">URL RTSP do Vídeo</label>
+                                    <input type="text" id="cam-rtsp" placeholder="Ex: rtsp://admin:senha@192.168.1.100:554/live/ch1" required>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group half">
+                                        <label for="cam-device">Marca / Modelo do Aparelho</label>
+                                        <select id="cam-device">
+                                            <option value="Intelbras VIP">Intelbras VIP Series</option>
+                                            <option value="Hikvision DS">Hikvision Bullet/Dome</option>
+                                            <option value="Dahua HDW">Dahua Network Camera</option>
+                                            <option value="ONVIF Genérica">Genérica ONVIF IP Cam</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group half">
+                                        <label for="cam-profile">Perfil de IA Comportamental</label>
+                                        <select id="cam-profile">
+                                            <option value="Ocultamento / Suspeita">Ocultamento de Itens (Jaqueta/Mochila)</option>
+                                            <option value="Tempo de Permanência">Permanência Excedida (Zonas Caras)</option>
+                                            <option value="Autoatendimento / Scan">Não Escaneados (Checkout)</option>
+                                            <option value="Movimentação Rápida">Pessoa Correndo / Invasão</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <button type="submit" class="action-btn w-full" id="btn-add-camera">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                    Conectar Câmera
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <!-- Batch DVR Form -->
+                        <div id="batch-dvr-form-container" style="display: none;">
+                            <form class="camera-form" id="camera-batch-form" onsubmit="return false;">
+                                <div class="form-group">
+                                    <label for="dvr-brand">Fabricante / Tipo de DVR</label>
+                                    <select id="dvr-brand">
+                                        <option value="intelbras">Intelbras / Dahua (realmonitor)</option>
+                                        <option value="hikvision">Hikvision (Streaming/Channels)</option>
+                                        <option value="hikvision_av">Hikvision Legacy (h264/chX)</option>
+                                        <option value="custom">URL RTSP Personalizada (com {channel})</option>
                                     </select>
                                 </div>
-                                <div class="form-group half">
-                                    <label for="cam-profile">Perfil de IA Comportamental</label>
-                                    <select id="cam-profile">
+                                
+                                <div class="form-group">
+                                    <label for="dvr-ip">IP ou Host do DVR</label>
+                                    <input type="text" id="dvr-ip" placeholder="Ex: 192.168.1.100" required>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group half">
+                                        <label for="dvr-port">Porta RTSP</label>
+                                        <input type="number" id="dvr-port" value="554" required>
+                                    </div>
+                                    <div class="form-group half">
+                                        <label for="dvr-user">Usuário</label>
+                                        <input type="text" id="dvr-user" value="admin" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="dvr-pass">Senha</label>
+                                    <input type="password" id="dvr-pass" placeholder="Senha do DVR" required>
+                                </div>
+                                
+                                <div class="form-row" id="custom-url-row" style="display: none;">
+                                    <div class="form-group w-full">
+                                        <label for="dvr-custom-pattern">Padrão da Rota RTSP</label>
+                                        <input type="text" id="dvr-custom-pattern" value="rtsp://{user}:{pass}@{ip}:{port}/canal-{channel}" placeholder="Use {channel}, {ip}, {port}, {user}, {pass}">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group half">
+                                        <label for="dvr-start-ch">Canal Inicial</label>
+                                        <input type="number" id="dvr-start-ch" value="1" min="1" max="64" required>
+                                    </div>
+                                    <div class="form-group half">
+                                        <label for="dvr-end-ch">Canal Final</label>
+                                        <input type="number" id="dvr-end-ch" value="8" min="1" max="64" required>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="dvr-profile">Perfil de IA (para todas)</label>
+                                    <select id="dvr-profile">
                                         <option value="Ocultamento / Suspeita">Ocultamento de Itens (Jaqueta/Mochila)</option>
                                         <option value="Tempo de Permanência">Permanência Excedida (Zonas Caras)</option>
                                         <option value="Autoatendimento / Scan">Não Escaneados (Checkout)</option>
                                         <option value="Movimentação Rápida">Pessoa Correndo / Invasão</option>
                                     </select>
                                 </div>
-                            </div>
-                            
-                            <button type="submit" class="action-btn w-full" id="btn-add-camera">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                Conectar Câmera
-                            </button>
-                        </form>
+                                
+                                <button type="submit" class="action-btn w-full" id="btn-add-dvr">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                                    Importar DVR (Lote)
+                                </button>
+                            </form>
+                        </div>
                     </div>
                 </div>
             </section>
