@@ -1682,18 +1682,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.success && Array.isArray(data.alerts)) {
                     let updated = false;
                     data.alerts.forEach(dbAlert => {
-                        const exists = alertsList.some(a => a.db_id === dbAlert.id || (a.title === dbAlert.title && a.time === dbAlert.time));
+                        const exists = alertsList.some(a => a.db_id === dbAlert.id);
                         if (!exists) {
+                            const alertTime = dbAlert.created_at ? new Date(dbAlert.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                             alertsList.unshift({
                                 id: nextAlertId++,
                                 db_id: dbAlert.id,
                                 severity: dbAlert.severity,
-                                time: dbAlert.time,
+                                time: alertTime,
                                 title: dbAlert.title,
-                                camera: dbAlert.camera,
+                                camera: dbAlert.camera_name || "Mundo Infantil",
                                 confidence: dbAlert.confidence,
                                 details: dbAlert.details || "Alerta detectado por processador IA local.",
-                                trigger: dbAlert.trigger || "Detecção automática.",
+                                trigger: dbAlert.trigger_type || "Detecção automática.",
                                 code: dbAlert.code || "DB_ALERT"
                             });
                             updated = true;
