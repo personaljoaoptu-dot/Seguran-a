@@ -52,7 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const shouldLoad = (viewMode === 'grid') || (viewMode === 'single' && cam.id === activeCameraId);
                 
                 if (shouldLoad) {
-                    const streamUrl = `http://${getStreamHost(cam.id)}:8082/stream?rtsp=${encodeURIComponent(cam.rtsp)}`;
+                    const tenantId = sessionStorage.getItem('aegiseye_tenant_id') || 'a7974ee4-329c-4c06-a57a-0377bcae242e';
+                    const streamUrl = `http://${getStreamHost(cam.id)}:8082/stream?rtsp=${encodeURIComponent(cam.rtsp)}&camera_id=${encodeURIComponent(cam.db_id || cam.id)}&camera_name=${encodeURIComponent(cam.name)}&tenant_id=${encodeURIComponent(tenantId)}`;
                     if (img.src !== streamUrl) {
                         img.src = streamUrl;
                     }

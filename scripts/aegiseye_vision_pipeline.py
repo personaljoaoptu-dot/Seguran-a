@@ -88,12 +88,12 @@ def is_point_in_polygon(x, y, poly):
         p1x, p1y = p2x, p2y
     return inside
 
-def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEALMENT_ROI", confidence=90.0):
+def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEALMENT_ROI", confidence=90.0, tenant_id=None, camera_id=None, camera_name=None):
     """Sends the alert metadata payload to n8n backend webhook asynchronously"""
     payload = {
-        "tenant_id": TENANT_ID,
-        "camera_id": CAMERA_ID,
-        "camera_name": CAMERA_NAME,
+        "tenant_id": tenant_id or TENANT_ID,
+        "camera_id": camera_id or CAMERA_ID,
+        "camera_name": camera_name or CAMERA_NAME,
         "severity": severity,
         "title": title,
         "details": details,
@@ -188,6 +188,8 @@ def stream_capture_worker(rtsp_url):
                 with streams_lock:
                     if rtsp_url in active_streams:
                         active_streams[rtsp_url]["frame"] = frame_bytes
+                        active_streams[rtsp_url]["raw_frame"] = frame.copy()
+                        active_streams[rtsp_url]["new_frame"] = True
                     else:
                         break
                 time.sleep(0.033)
@@ -222,6 +224,8 @@ def stream_capture_worker(rtsp_url):
                         with streams_lock:
                             if rtsp_url in active_streams:
                                 active_streams[rtsp_url]["frame"] = frame_bytes
+                                active_streams[rtsp_url]["raw_frame"] = img.copy()
+                                active_streams[rtsp_url]["new_frame"] = True
                             else:
                                 break
                     
@@ -291,6 +295,10 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
             query_params = urllib.parse.parse_qs(parsed_url.query)
             rtsp_url = query_params.get('rtsp', [''])[0].strip()
             
+            camera_id = query_params.get('camera_id', [''])[0].strip()
+            camera_name = query_params.get('camera_name', [''])[0].strip()
+            tenant_id = query_params.get('tenant_id', [''])[0].strip()
+            
             if not rtsp_url:
                 rtsp_url = RTSP_URL
 
@@ -307,11 +315,19 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
                     if rtsp_url not in active_streams:
                         active_streams[rtsp_url] = {
                             "frame": None,
+                            "raw_frame": None,
+                            "new_frame": False,
+                            "camera_id": camera_id,
+                            "camera_name": camera_name,
+                            "tenant_id": tenant_id,
                             "last_accessed": time.time()
                         }
                         threading.Thread(target=stream_capture_worker, args=(rtsp_url,), daemon=True).start()
                     else:
                         active_streams[rtsp_url]["last_accessed"] = time.time()
+                        if camera_id: active_streams[rtsp_url]["camera_id"] = camera_id
+                        if camera_name: active_streams[rtsp_url]["camera_name"] = camera_name
+                        if tenant_id: active_streams[rtsp_url]["tenant_id"] = tenant_id
 
             last_served_frame = None
             try:
@@ -327,6 +343,11 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
                             else:
                                 active_streams[rtsp_url] = {
                                     "frame": None,
+                                    "raw_frame": None,
+                                    "new_frame": False,
+                                    "camera_id": camera_id,
+                                    "camera_name": camera_name,
+                                    "tenant_id": tenant_id,
                                     "last_accessed": time.time()
                                 }
                                 threading.Thread(target=stream_capture_worker, args=(rtsp_url,), daemon=True).start()
@@ -358,7 +379,7 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-def process_detections_and_infractions(detections, W, H, frame=None, simulate=False):
+def process_detections_and_infractions(detections, W, H, frame=None, simulate=False, camera_name=None, camera_id=None, tenant_id=None):
     """Processes detections and updates infraction timers with advanced behavior tracking & log throttling"""
     global tracked_persons
     current_time = time.time()
@@ -408,14 +429,15 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
         
         for p in persons:
             track_id = p["track_id"]
-            detected_track_ids.add(track_id)
+            track_key = f"{camera_name or CAMERA_NAME}_{track_id}"
+            detected_track_ids.add(track_key)
             pcx, pcy = p["center"]
             px1, py1, pw, ph = p["bbox"]
             in_roi = p["in_roi"]
             
             # Initialize track if new
-            if track_id not in tracked_persons:
-                tracked_persons[track_id] = {
+            if track_key not in tracked_persons:
+                tracked_persons[track_key] = {
                     "start_time": current_time,
                     "last_seen": current_time,
                     "last_logged": 0.0,
@@ -437,7 +459,7 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 }
                 print(f"[AI-INFO] Rastreando nova pessoa #{track_id} em ({pcx}, {pcy}). ROI={in_roi}")
                 
-            p_state = tracked_persons[track_id]
+            p_state = tracked_persons[track_key]
             p_state["last_seen"] = current_time
             
             # Update ROI lingering timer
@@ -635,7 +657,10 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     details=details,
                     severity="critical",
                     trigger_type="CONCEALMENT_ROI",
-                    confidence=risk_percentage
+                    confidence=risk_percentage,
+                    tenant_id=tenant_id,
+                    camera_id=camera_id,
+                    camera_name=camera_name
                 )
                 
             # Warning Alert: 15% <= Risk < 70%
@@ -654,7 +679,10 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     details=details,
                     severity="warning",
                     trigger_type="SUSPICIOUS_BEHAVIOR",
-                    confidence=risk_percentage
+                    confidence=risk_percentage,
+                    tenant_id=tenant_id,
+                    camera_id=camera_id,
+                    camera_name=camera_name
                 )
 
         # Cleanup expired tracks (not seen for more than 4 seconds)
@@ -688,13 +716,29 @@ def ai_inference_loop(simulate=False):
             model = None
             
     frame_count = 0
+    frame_count = 0
     while running:
         img_to_check = None
+        cam_name = CAMERA_NAME
+        cam_id = CAMERA_ID
+        ten_id = TENANT_ID
+        
         with frame_lock:
             if frame_to_process is not None:
                 img_to_check = frame_to_process
                 frame_to_process = None
                 
+        if img_to_check is None:
+            with streams_lock:
+                for r_url, stream_info in list(active_streams.items()):
+                    if stream_info.get("new_frame") and stream_info.get("raw_frame") is not None:
+                        img_to_check = stream_info["raw_frame"].copy()
+                        cam_name = stream_info.get("camera_name", CAMERA_NAME)
+                        cam_id = stream_info.get("camera_id", CAMERA_ID)
+                        ten_id = stream_info.get("tenant_id", TENANT_ID)
+                        stream_info["new_frame"] = False
+                        break
+                        
         if img_to_check is None:
             time.sleep(0.01)
             continue
@@ -714,7 +758,7 @@ def ai_inference_loop(simulate=False):
                     
                     # Print raw detections above 20% confidence for real-time tracking
                     if conf > 0.20:
-                        print(f"[AI-RAW] Visto: {cls_name} (conf: {conf:.2f})")
+                        print(f"[AI-RAW] Visto no canal '{cam_name}': {cls_name} (conf: {conf:.2f})")
                     
                     # Expanded classes list (including cell phone, suitcase, snowboard, skateboard, elephant, surfboard)
                     if cls_name in ["person", "backpack", "handbag", "bag", "suitcase", "briefcase", "cell phone", "snowboard", "skateboard", "umbrella", "elephant", "surfboard"] and conf > 0.22:
@@ -752,7 +796,10 @@ def ai_inference_loop(simulate=False):
                     })
 
         # Process detections and infractions
-        process_detections_and_infractions(detections, W, H, img_to_check, simulate)
+        process_detections_and_infractions(
+            detections, W, H, img_to_check, simulate,
+            camera_name=cam_name, camera_id=cam_id, tenant_id=ten_id
+        )
         
         time.sleep(0.02) # Yield CPU
 
