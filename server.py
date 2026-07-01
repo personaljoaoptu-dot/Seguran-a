@@ -128,20 +128,30 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
         elif clean_path == '/api/get-alerts':
             query_params = urllib.parse.parse_qs(parsed_url.query)
             tenant_id = query_params.get('tenant_id', [''])[0].strip()
-            if not tenant_id:
-                self.send_error_response("tenant_id é obrigatório.")
+            user_id = query_params.get('user_id', [''])[0].strip()
+            if not tenant_id and not user_id:
+                self.send_error_response("tenant_id ou user_id é obrigatório.")
                 return
             conn = None
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT created_at, severity, title, camera_name, confidence, id, details, trigger_type 
-                    FROM public.alertas 
-                    WHERE tenant_id = %s OR tenant_id = '65244ad5-47c7-4905-89c9-0efad0e9d7b6' OR tenant_id = 'a7974ee4-329c-4c06-a57a-0377bcae242e'
-                    ORDER BY created_at DESC 
-                    LIMIT 20
-                """, (tenant_id,))
+                if user_id:
+                    cursor.execute("""
+                        SELECT created_at, severity, title, camera_name, confidence, id, details, trigger_type 
+                        FROM public.alertas 
+                        WHERE user_id = %s
+                        ORDER BY created_at DESC 
+                        LIMIT 20
+                    """, (user_id,))
+                else:
+                    cursor.execute("""
+                        SELECT created_at, severity, title, camera_name, confidence, id, details, trigger_type 
+                        FROM public.alertas 
+                        WHERE tenant_id = %s
+                        ORDER BY created_at DESC 
+                        LIMIT 20
+                    """, (tenant_id,))
                 alerts = []
                 for row in cursor.fetchall():
                     created_at = row[0]
@@ -253,6 +263,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                             "success": True,
                             "session_token": session_token,
                             "user_name": user_name,
+                            "user_id": str(user_row.get('id')),
                             "tenant_id": str(tenant_id),
                             "tenant_name": tenant_name
                         }

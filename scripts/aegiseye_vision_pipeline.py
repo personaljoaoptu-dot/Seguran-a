@@ -88,10 +88,11 @@ def is_point_in_polygon(x, y, poly):
         p1x, p1y = p2x, p2y
     return inside
 
-def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEALMENT_ROI", confidence=90.0, tenant_id=None, camera_id=None, camera_name=None):
+def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEALMENT_ROI", confidence=90.0, tenant_id=None, camera_id=None, camera_name=None, user_id=None):
     """Sends the alert metadata payload to n8n backend webhook asynchronously"""
     payload = {
         "tenant_id": tenant_id or TENANT_ID,
+        "user_id": user_id,
         "camera_id": camera_id or CAMERA_ID,
         "camera_name": camera_name or CAMERA_NAME,
         "severity": severity,
@@ -298,6 +299,7 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
             camera_id = query_params.get('camera_id', [''])[0].strip()
             camera_name = query_params.get('camera_name', [''])[0].strip()
             tenant_id = query_params.get('tenant_id', [''])[0].strip()
+            user_id = query_params.get('user_id', [''])[0].strip()
             
             if not rtsp_url:
                 rtsp_url = RTSP_URL
@@ -320,6 +322,7 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
                             "camera_id": camera_id,
                             "camera_name": camera_name,
                             "tenant_id": tenant_id,
+                            "user_id": user_id,
                             "last_accessed": time.time()
                         }
                         threading.Thread(target=stream_capture_worker, args=(rtsp_url,), daemon=True).start()
@@ -328,6 +331,7 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
                         if camera_id: active_streams[rtsp_url]["camera_id"] = camera_id
                         if camera_name: active_streams[rtsp_url]["camera_name"] = camera_name
                         if tenant_id: active_streams[rtsp_url]["tenant_id"] = tenant_id
+                        if user_id: active_streams[rtsp_url]["user_id"] = user_id
 
             last_served_frame = None
             try:
@@ -348,6 +352,7 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
                                     "camera_id": camera_id,
                                     "camera_name": camera_name,
                                     "tenant_id": tenant_id,
+                                    "user_id": user_id,
                                     "last_accessed": time.time()
                                 }
                                 threading.Thread(target=stream_capture_worker, args=(rtsp_url,), daemon=True).start()
@@ -379,7 +384,7 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-def process_detections_and_infractions(detections, W, H, frame=None, simulate=False, camera_name=None, camera_id=None, tenant_id=None):
+def process_detections_and_infractions(detections, W, H, frame=None, simulate=False, camera_name=None, camera_id=None, tenant_id=None, user_id=None):
     """Processes detections and updates infraction timers with advanced behavior tracking & log throttling"""
     global tracked_persons
     current_time = time.time()
@@ -660,7 +665,8 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     confidence=risk_percentage,
                     tenant_id=tenant_id,
                     camera_id=camera_id,
-                    camera_name=camera_name
+                    camera_name=camera_name,
+                    user_id=user_id
                 )
                 
             # Warning Alert: 15% <= Risk < 70%
@@ -682,7 +688,8 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     confidence=risk_percentage,
                     tenant_id=tenant_id,
                     camera_id=camera_id,
-                    camera_name=camera_name
+                    camera_name=camera_name,
+                    user_id=user_id
                 )
 
         # Cleanup expired tracks (not seen for more than 4 seconds)
@@ -722,6 +729,7 @@ def ai_inference_loop(simulate=False):
         cam_name = CAMERA_NAME
         cam_id = CAMERA_ID
         ten_id = TENANT_ID
+        usr_id = None
         
         with frame_lock:
             if frame_to_process is not None:
@@ -736,6 +744,7 @@ def ai_inference_loop(simulate=False):
                         cam_name = stream_info.get("camera_name", CAMERA_NAME)
                         cam_id = stream_info.get("camera_id", CAMERA_ID)
                         ten_id = stream_info.get("tenant_id", TENANT_ID)
+                        usr_id = stream_info.get("user_id", None)
                         stream_info["new_frame"] = False
                         break
                         
@@ -798,7 +807,8 @@ def ai_inference_loop(simulate=False):
         # Process detections and infractions
         process_detections_and_infractions(
             detections, W, H, img_to_check, simulate,
-            camera_name=cam_name, camera_id=cam_id, tenant_id=ten_id
+            camera_name=cam_name, camera_id=cam_id, tenant_id=ten_id,
+            user_id=usr_id
         )
         
         time.sleep(0.02) # Yield CPU

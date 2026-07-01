@@ -53,7 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (shouldLoad) {
                     const tenantId = sessionStorage.getItem('aegiseye_tenant_id') || 'a7974ee4-329c-4c06-a57a-0377bcae242e';
-                    const streamUrl = `http://${getStreamHost(cam.id)}:8082/stream?rtsp=${encodeURIComponent(cam.rtsp)}&camera_id=${encodeURIComponent(cam.db_id || cam.id)}&camera_name=${encodeURIComponent(cam.name)}&tenant_id=${encodeURIComponent(tenantId)}`;
+                    const userId = sessionStorage.getItem('aegiseye_user_id') || '';
+                    const streamUrl = `http://${getStreamHost(cam.id)}:8082/stream?rtsp=${encodeURIComponent(cam.rtsp)}&camera_id=${encodeURIComponent(cam.db_id || cam.id)}&camera_name=${encodeURIComponent(cam.name)}&tenant_id=${encodeURIComponent(tenantId)}&user_id=${encodeURIComponent(userId)}`;
                     if (img.src !== streamUrl) {
                         img.src = streamUrl;
                     }
@@ -1673,10 +1674,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadAlertsFromDatabase() {
         const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
+        const userId = sessionStorage.getItem('aegiseye_user_id');
         if (!tenantId) return;
         
         try {
-            const res = await fetch(`/api/get-alerts?tenant_id=${tenantId}`);
+            const url = userId ? `/api/get-alerts?tenant_id=${tenantId}&user_id=${userId}` : `/api/get-alerts?tenant_id=${tenantId}`;
+            const res = await fetch(url);
             if (res.ok) {
                 const data = await res.json();
                 if (data.success && Array.isArray(data.alerts)) {
