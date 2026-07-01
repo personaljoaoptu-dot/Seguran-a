@@ -375,6 +375,12 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (targetTab === 'saas') {
                 viewTitle.innerText = "Simulador SaaS & ROI";
                 viewSubtitle.innerText = "Simule e entenda a viabilidade comercial do projeto AegisEye AI";
+            } else if (targetTab === 'settings') {
+                viewTitle.innerText = "Configurações";
+                viewSubtitle.innerText = "Parâmetros operacionais do sistema, webhook e chaves de segurança";
+                if (typeof window.loadSettings === 'function') {
+                    window.loadSettings();
+                }
             }
         });
     });
@@ -1809,4 +1815,270 @@ document.addEventListener('DOMContentLoaded', () => {
             saasAnnualSavings.innerText = `Ajuste os parâmetros. No cenário atual, o custo de implantação excede a economia calculada.`;
         }
     }
+
+    // --- TAB 5: SETTINGS & PASSWORD SECURITY MODULE ---
+    const settingsSubtabs = document.querySelectorAll('.settings-subtab');
+    const settingsSections = document.querySelectorAll('.settings-section-content');
+    const toast = document.getElementById('settings-toast');
+
+    function showToast(msg, type = 'success') {
+        if (!toast) return;
+        toast.innerText = msg;
+        toast.className = `settings-toast ${type}`;
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 4000);
+    }
+
+    // Subtab switching
+    settingsSubtabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            settingsSubtabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            const target = tab.getAttribute('data-subtab');
+            settingsSections.forEach(sec => {
+                sec.style.display = 'none';
+                if (sec.id === `subtab-${target}`) {
+                    sec.style.display = 'block';
+                }
+            });
+        });
+    });
+
+    // AI Settings inputs
+    const sensRange = document.getElementById('settings-ai-sensitivity');
+    const sensVal = document.getElementById('ai-sensitivity-val');
+    const fpsRange = document.getElementById('settings-ai-fps');
+    const fpsVal = document.getElementById('ai-fps-val');
+
+    if (sensRange && sensVal) {
+        sensRange.addEventListener('input', (e) => {
+            sensVal.innerText = `${e.target.value}%`;
+        });
+    }
+    if (fpsRange && fpsVal) {
+        fpsRange.addEventListener('input', (e) => {
+            fpsVal.innerText = `${e.target.value} FPS`;
+        });
+    }
+
+    // Load Settings
+    async function loadSettings() {
+        const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
+        if (!tenantId) return;
+        try {
+            const res = await fetch(`/api/get-settings?tenant_id=${tenantId}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    if (document.getElementById('settings-webhook-url')) {
+                        document.getElementById('settings-webhook-url').value = data.n8n_webhook_url || '';
+                    }
+                    if (document.getElementById('settings-master-key')) {
+                        document.getElementById('settings-master-key').value = data.recovery_master_key || '';
+                    }
+                    if (sensRange && sensVal) {
+                        sensRange.value = data.ai_sensitivity || 75;
+                        sensVal.innerText = `${sensRange.value}%`;
+                    }
+                    if (fpsRange && fpsVal) {
+                        fpsRange.value = data.ai_fps || 10;
+                        fpsVal.innerText = `${fpsRange.value} FPS`;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Erro ao carregar configurações:", e);
+        }
+    }
+
+    // Password strength check
+    const newPassInput = document.getElementById('settings-new-password');
+    const strengthBar = document.getElementById('strength-bar');
+    const strengthText = document.getElementById('strength-text');
+    const reqLength = document.getElementById('req-length');
+    const reqCase = document.getElementById('req-case');
+    const reqNumber = document.getElementById('req-number');
+    const reqSpecial = document.getElementById('req-special');
+
+    if (newPassInput) {
+        newPassInput.addEventListener('input', () => {
+            const val = newPassInput.value;
+            let score = 0;
+            
+            // Length
+            const hasLength = val.length >= 8;
+            if (hasLength) { score++; reqLength.className = 'req-item valid'; }
+            else { reqLength.className = 'req-item invalid'; }
+            
+            // Case
+            const hasCase = /[a-z]/.test(val) && /[A-Z]/.test(val);
+            if (hasCase) { score++; reqCase.className = 'req-item valid'; }
+            else { reqCase.className = 'req-item invalid'; }
+            
+            // Number
+            const hasNumber = /[0-9]/.test(val);
+            if (hasNumber) { score++; reqNumber.className = 'req-item valid'; }
+            else { reqNumber.className = 'req-item invalid'; }
+            
+            // Special
+            const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(val);
+            if (hasSpecial) { score++; reqSpecial.className = 'req-item valid'; }
+            else { reqSpecial.className = 'req-item invalid'; }
+            
+            // Render UI
+            if (val === '') {
+                strengthBar.style.width = '0%';
+                strengthText.innerText = 'Força: -';
+            } else if (score <= 1) {
+                strengthBar.style.width = '25%';
+                strengthBar.style.backgroundColor = 'var(--rose-500)';
+                strengthText.innerText = 'Força: Fraca';
+            } else if (score <= 3) {
+                strengthBar.style.width = '60%';
+                strengthBar.style.backgroundColor = 'var(--amber-500)';
+                strengthText.innerText = 'Força: Média';
+            } else {
+                strengthBar.style.width = '100%';
+                strengthBar.style.backgroundColor = 'var(--green-500)';
+                strengthText.innerText = 'Força: Forte';
+            }
+        });
+    }
+
+    // Submit general settings
+    const generalForm = document.getElementById('form-settings-general');
+    if (generalForm) {
+        generalForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
+            const webhookUrl = document.getElementById('settings-webhook-url').value.trim();
+            const masterKey = document.getElementById('settings-master-key') ? document.getElementById('settings-master-key').value.trim() : 'AEGISEYE_MASTER_KEY_2026';
+            
+            try {
+                const res = await fetch('/api/save-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tenant_id: tenantId,
+                        n8n_webhook_url: webhookUrl,
+                        recovery_master_key: masterKey,
+                        ai_sensitivity: sensRange ? parseInt(sensRange.value) : 75,
+                        ai_fps: fpsRange ? parseInt(fpsRange.value) : 10
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast("Configurações salvas com sucesso!");
+                } else {
+                    showToast(data.message || "Erro ao salvar.", "error");
+                }
+            } catch (err) {
+                showToast("Erro na conexão com o servidor.", "error");
+            }
+        });
+    }
+
+    // Submit AI settings
+    const aiForm = document.getElementById('form-settings-ai');
+    if (aiForm) {
+        aiForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
+            const webhookUrl = document.getElementById('settings-webhook-url') ? document.getElementById('settings-webhook-url').value.trim() : '';
+            const masterKey = document.getElementById('settings-master-key') ? document.getElementById('settings-master-key').value.trim() : 'AEGISEYE_MASTER_KEY_2026';
+            
+            try {
+                const res = await fetch('/api/save-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tenant_id: tenantId,
+                        n8n_webhook_url: webhookUrl,
+                        recovery_master_key: masterKey,
+                        ai_sensitivity: parseInt(sensRange.value),
+                        ai_fps: parseInt(fpsRange.value)
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast("Configurações salvas com sucesso!");
+                } else {
+                    showToast(data.message || "Erro ao salvar.", "error");
+                }
+            } catch (err) {
+                showToast("Erro na conexão com o servidor.", "error");
+            }
+        });
+    }
+
+    // Submit Security (Reset Password & Master Key)
+    const securityForm = document.getElementById('form-settings-security');
+    if (securityForm) {
+        securityForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const userId = sessionStorage.getItem('aegiseye_user_id');
+            const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
+            const currentPass = document.getElementById('settings-current-password').value;
+            const newPass = newPassInput.value;
+            const masterKey = document.getElementById('settings-master-key').value.trim();
+
+            // Validate strength first
+            const hasLength = newPass.length >= 8;
+            const hasCase = /[a-z]/.test(newPass) && /[A-Z]/.test(newPass);
+            const hasNumber = /[0-9]/.test(newPass);
+            const hasSpecial = /[!@#$%^&*(),.?\":{}|<>]/.test(newPass);
+
+            if (!hasLength || !hasCase || !hasNumber || !hasSpecial) {
+                showToast("A nova senha não atende a todos os requisitos mínimos de força.", "error");
+                return;
+            }
+
+            try {
+                // 1. Reset password
+                const resPass = await fetch('/api/reset-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: userId,
+                        current_password: currentPass,
+                        new_password: newPass
+                    })
+                });
+                const dataPass = await resPass.json();
+                if (!dataPass.success) {
+                    showToast(dataPass.message || "Senha atual incorreta.", "error");
+                    return;
+                }
+
+                // 2. Save master key
+                const webhookUrl = document.getElementById('settings-webhook-url') ? document.getElementById('settings-webhook-url').value.trim() : '';
+                await fetch('/api/save-settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tenant_id: tenantId,
+                        n8n_webhook_url: webhookUrl,
+                        recovery_master_key: masterKey,
+                        ai_sensitivity: sensRange ? parseInt(sensRange.value) : 75,
+                        ai_fps: fpsRange ? parseInt(fpsRange.value) : 10
+                    })
+                });
+
+                showToast("Configurações salvas com sucesso!");
+                document.getElementById('settings-current-password').value = '';
+                newPassInput.value = '';
+                strengthBar.style.width = '0%';
+                strengthText.innerText = 'Força: -';
+                document.querySelectorAll('.req-item').forEach(li => li.className = 'req-item invalid');
+            } catch (err) {
+                showToast("Erro na comunicação com o servidor.", "error");
+            }
+        });
+    }
+
+    // Expose loadSettings globally so navigation click triggers it
+    window.loadSettings = loadSettings;
 });

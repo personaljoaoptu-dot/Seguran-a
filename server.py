@@ -194,6 +194,56 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             self.send_success_response({"success": True, "online": is_online})
             return
             
+        elif clean_path == '/api/get-settings':
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            tenant_id = query_params.get('tenant_id', [''])[0].strip()
+            if not tenant_id:
+                self.send_error_response("tenant_id é obrigatório.")
+                return
+            conn = None
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT ai_sensitivity, ai_fps, n8n_webhook_url, recovery_master_key 
+                    FROM public.configuracoes 
+                    WHERE tenant_id = %s;
+                """, (tenant_id,))
+                row = cursor.fetchone()
+                if not row:
+                    # Insert default settings if not exists
+                    cursor.execute("""
+                        INSERT INTO public.configuracoes (tenant_id)
+                        VALUES (%s)
+                        ON CONFLICT DO NOTHING;
+                    """, (tenant_id,))
+                    conn.commit()
+                    cursor.execute("""
+                        SELECT ai_sensitivity, ai_fps, n8n_webhook_url, recovery_master_key 
+                        FROM public.configuracoes 
+                        WHERE tenant_id = %s;
+                    """, (tenant_id,))
+                    row = cursor.fetchone()
+                
+                cursor.close()
+                self.send_success_response({
+                    "success": True,
+                    "ai_sensitivity": row[0],
+                    "ai_fps": row[1],
+                    "n8n_webhook_url": row[2],
+                    "recovery_master_key": row[3]
+                })
+            except Exception as e:
+                print(f"[ERROR] Falha ao carregar configuracoes: {e}")
+                self.send_error_response(f"Erro ao carregar configurações: {e}")
+            finally:
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+            return
+            
         # Default index resolution
         if clean_path == '/' or clean_path == '':
             self.path = '/index.html'
@@ -451,6 +501,109 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f"[ERROR] Erro interno durante configuração: {e}")
                 self.send_error_response("Erro interno ao processar configuração.")
+        elif self.path == '/api/save-settings':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                tenant_id = payload.get('tenant_id', '').strip()
+                ai_sensitivity = int(payload.get('ai_sensitivity', 75))
+                ai_fps = int(payload.get('ai_fps', 10))
+                n8n_webhook_url = payload.get('n8n_webhook_url', '').strip()
+                recovery_master_key = payload.get('recovery_master_key', '').strip()
+                
+                if not tenant_id:
+                    self.send_error_response("tenant_id é obrigatório.")
+                    return
+                
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO public.configuracoes (tenant_id, ai_sensitivity, ai_fps, n8n_webhook_url, recovery_master_key)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (tenant_id)
+                    DO UPDATE SET 
+                        ai_sensitivity = EXCLUDED.ai_sensitivity,
+                        ai_fps = EXCLUDED.ai_fps,
+                        n8n_webhook_url = EXCLUDED.n8n_webhook_url,
+                        recovery_master_key = EXCLUDED.recovery_master_key;
+                """, (tenant_id, ai_sensitivity, ai_fps, n8n_webhook_url, recovery_master_key))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                self.send_success_response({"success": True, "message": "Configurações salvas com sucesso."})
+            except Exception as e:
+                print(f"[ERROR] Falha ao salvar configuracoes: {e}")
+                self.send_error_response(f"Erro ao salvar configurações: {e}")
+        elif self.path == '/api/reset-password':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                user_id = payload.get('user_id', '').strip()
+                current_password = payload.get('current_password', '')
+                new_password = payload.get('new_password', '')
+                
+                if not user_id or not current_password or not new_password:
+                    self.send_error_response("Todos os campos são obrigatórios.")
+                    return
+                
+                # Validation of password strength
+                if len(new_password) < 8:
+                    self.send_error_response("A nova senha deve ter pelo menos 8 caracteres.")
+                    return
+                import re
+                if not re.search(r"[a-z]", new_password) or not re.search(r"[A-Z]", new_password) or not re.search(r"[0-9]", new_password) or not re.search(r"[!@#$%^&*(),.?\":{}|<>]", new_password):
+                    self.send_error_response("A nova senha deve conter letras maiúsculas, minúsculas, números e caracteres especiais.")
+                    return
+                
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Fetch user tenant and hash
+                cursor.execute("SELECT tenant_id, password_hash FROM public.users WHERE id = %s;", (user_id,))
+                user_row = cursor.fetchone()
+                if not user_row:
+                    cursor.close()
+                    conn.close()
+                    self.send_error_response("Usuário não encontrado.")
+                    return
+                
+                tenant_id, password_hash = user_row
+                
+                # Fetch master key for tenant
+                cursor.execute("SELECT recovery_master_key FROM public.configuracoes WHERE tenant_id = %s;", (str(tenant_id),))
+                cfg_row = cursor.fetchone()
+                master_key = cfg_row[0] if cfg_row else "AEGISEYE_MASTER_KEY_2026"
+                
+                # Authentication check: either correct current password OR Master Key bypass
+                is_authorized = False
+                if current_password == master_key:
+                    is_authorized = True
+                    print(f"[SECURITY] Redefinição de senha autorizada via Chave Mestra de Recuperação para o User {user_id}")
+                else:
+                    try:
+                        if bcrypt.checkpw(current_password.encode('utf-8'), password_hash.encode('utf-8')):
+                            is_authorized = True
+                    except Exception:
+                        pass
+                
+                if not is_authorized:
+                    cursor.close()
+                    conn.close()
+                    self.send_error_response("Senha atual incorreta (ou chave mestra inválida).")
+                    return
+                
+                # Update user password
+                new_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+                cursor.execute("UPDATE public.users SET password_hash = %s WHERE id = %s;", (new_hash, user_id))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                self.send_success_response({"success": True, "message": "Senha redefinida com sucesso."})
+            except Exception as e:
+                print(f"[ERROR] Falha ao redefinir senha: {e}")
+                self.send_error_response(f"Erro ao redefinir senha: {e}")
         elif self.path == '/api/edge-ping':
             content_length = int(self.headers.get('Content-Length', 0))
             post_data = self.rfile.read(content_length)

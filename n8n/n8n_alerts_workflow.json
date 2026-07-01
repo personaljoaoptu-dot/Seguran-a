@@ -21,7 +21,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "=INSERT INTO public.alertas (tenant_id, user_id, camera_id, camera_name, severity, title, details, confidence, trigger_type) VALUES ('{{ $json.body.tenant_id }}', {{ $json.body.user_id ? \"'\" + $json.body.user_id + \"'\" : 'NULL' }}, {{ $json.body.camera_id ? \"'\" + $json.body.camera_id + \"'\" : 'NULL' }}, '{{ $json.body.camera_name }}', '{{ $json.body.severity }}', '{{ $json.body.title }}', '{{ $json.body.details }}', {{ $json.body.confidence }}, '{{ $json.body.trigger_type }}') RETURNING id;",
+        "query": "=INSERT INTO public.alertas (tenant_id, user_id, camera_id, camera_name, severity, title, details, confidence, trigger_type) VALUES ('{{ $json.body.tenant_id }}', {{ $json.body.user_id ? \"'\" + $json.body.user_id + \"'\" : 'NULL' }}, {{ $json.body.camera_id && $json.body.camera_id.length === 36 ? \"(SELECT id FROM public.cameras WHERE id = '\" + $json.body.camera_id + \"')\" : 'NULL' }}, '{{ $json.body.camera_name }}', '{{ $json.body.severity }}', '{{ $json.body.title }}', '{{ $json.body.details }}', {{ $json.body.confidence }}, '{{ $json.body.trigger_type }}') RETURNING id;",
         "options": {}
       },
       "id": "c1ffae40-e2b2-4d2c-8068-07e32402127e",

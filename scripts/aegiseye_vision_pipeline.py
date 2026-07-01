@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 import cv2
 import numpy as np
 from ultralytics import YOLO
+import pg8000
 
 # Global buffers for serving frames
 latest_clean_frame = None
@@ -35,6 +36,8 @@ CAMERA_ID = ""
 CAMERA_NAME = ""
 TENANT_ID = "a7974ee4-329c-4c06-a57a-0377bcae242e" # João Pedro
 N8N_WEBHOOK_URL = "http://144.91.121.55:5678/webhook/e5f6a7b8-cdbe-4712-a1f9-d892a01f30f6/webhook/aegiseye-alerts"
+AI_SENSITIVITY = 75
+AI_FPS = 10
 
 # ROI definition (Normalized coordinates 0.0 - 1.0 representing a polygon area)
 ROI_POLYGON = [
@@ -118,6 +121,35 @@ def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEA
             print(f"[API] Erro ao enviar alerta para o n8n: {ex}")
 
     threading.Thread(target=post_req, daemon=True).start()
+
+def load_db_config(tenant_id):
+    global N8N_WEBHOOK_URL, AI_SENSITIVITY, AI_FPS
+    try:
+        conn = pg8000.connect(
+            host="144.91.121.55",
+            port=5432,
+            user="postgres",
+            password="KtnYcxnVOGjD4thzS6tlBcW9",
+            database="aegisyear",
+            timeout=5
+        )
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT ai_sensitivity, ai_fps, n8n_webhook_url 
+            FROM public.configuracoes 
+            WHERE tenant_id = %s;
+        """, (str(tenant_id),))
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        if row:
+            AI_SENSITIVITY = int(row[0]) if row[0] is not None else 75
+            AI_FPS = int(row[1]) if row[1] is not None else 10
+            if row[2]:
+                N8N_WEBHOOK_URL = row[2]
+            print(f"[CONFIG] Configurações da IA carregadas do banco: Sensibilidade={AI_SENSITIVITY}%, FPS={AI_FPS}, Webhook={N8N_WEBHOOK_URL}")
+    except Exception as e:
+        print(f"[CONFIG WARNING] Erro ao carregar configurações do banco, utilizando padrões: {e}")
 
 def heartbeat_loop():
     """Periodically sends an online heartbeat signal to the central dashboard VPS"""
@@ -631,6 +663,11 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 risk_percentage += conceal_risk
                 reasons.append(f"Movimento de ocultação detectado (+{conceal_risk}%)")
                 
+            # Scale risk based on database global sensitivity setting
+            # Default sensitivity is 75. If sensitivity is 75, scaling factor is 1.0.
+            global AI_SENSITIVITY
+            sensitivity_factor = AI_SENSITIVITY / 75.0
+            risk_percentage = int(risk_percentage * sensitivity_factor)
             risk_percentage = min(risk_percentage, 100)
             
             # Logging Throttling to prevent console flooding (Log once every 2s per person, or on state/risk spike)
@@ -811,7 +848,9 @@ def ai_inference_loop(simulate=False):
             user_id=usr_id
         )
         
-        time.sleep(0.02) # Yield CPU
+        # Dynamically yield CPU based on settings configuration frequency
+        sleep_sec = 1.0 / AI_FPS if AI_FPS > 0 else 0.1
+        time.sleep(sleep_sec)
 
 class VideoCapturePipeline:
     def __init__(self, rtsp_url, simulate=False):
@@ -935,6 +974,9 @@ if __name__ == '__main__':
         CAMERA_NAME = args.name
     if args.tenant_id:
         TENANT_ID = args.tenant_id
+        
+    # Load settings from database configuracoes table for active tenant_id
+    load_db_config(TENANT_ID)
         
     simulate_mode = args.simulate or not RTSP_URL
     

@@ -51,6 +51,10 @@
                     <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                     Simulador SaaS & ROI
                 </button>
+                <button class="nav-item" data-tab="settings" id="btn-tab-settings">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    Configurações
+                </button>
             </nav>
             
             <div class="sidebar-footer">
@@ -740,6 +744,113 @@
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Tab -->
+            <section class="tab-view" id="view-settings">
+                <div class="settings-layout">
+                    <!-- Vertical Sub-Tabs / Left Sub-Sidebar -->
+                    <div class="settings-sidebar">
+                        <button class="settings-subtab active" data-subtab="general">
+                            <svg class="settings-subicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            Geral (Webhook)
+                        </button>
+                        <button class="settings-subtab" data-subtab="security">
+                            <svg class="settings-subicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            Segurança (Senha)
+                        </button>
+                        <button class="settings-subtab" data-subtab="ai">
+                            <svg class="settings-subicon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+                            Inteligência Artificial (IA)
+                        </button>
+                    </div>
+
+                    <!-- Settings Body Area -->
+                    <div class="settings-body">
+                        <!-- Toast Alert Feedback -->
+                        <div id="settings-toast" class="settings-toast" style="display: none;"></div>
+
+                        <!-- General / Webhook Form -->
+                        <div class="settings-section-content active" id="subtab-general">
+                            <h3>Gestão de Webhook</h3>
+                            <p class="section-desc">Configure o endpoint do n8n para onde o AegisEye enviará alertas em tempo real. Isso torna o sistema portátil entre instâncias.</p>
+                            
+                            <form id="form-settings-general" class="settings-form">
+                                <div class="form-group">
+                                    <label class="form-label" for="settings-webhook-url">URL do Webhook do n8n</label>
+                                    <input type="url" class="form-input" id="settings-webhook-url" placeholder="Ex: http://144.91.121.55:5678/webhook/..." required style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; margin-top: 8px;">
+                                </div>
+                                <button type="submit" class="btn-save-settings" style="margin-top: 16px; padding: 10px 20px; background: var(--indigo-600); border: none; border-radius: 6px; color: #fff; font-weight: 600; cursor: pointer; transition: background 0.2s;">Salvar Configurações</button>
+                            </form>
+                        </div>
+
+                        <!-- Security Form -->
+                        <div class="settings-section-content" id="subtab-security" style="display: none;">
+                            <h3>Segurança & Redefinição de Senha</h3>
+                            <p class="section-desc">Altere sua senha de acesso ou gerencie a chave mestra de recuperação para evitar bloqueios indesejados no SaaS.</p>
+                            
+                            <form id="form-settings-security" class="settings-form">
+                                <div class="form-group">
+                                    <label class="form-label" for="settings-current-password">Senha Atual ou Chave Mestra de Recuperação</label>
+                                    <input type="password" class="form-input" id="settings-current-password" placeholder="Digite sua senha atual ou chave mestra" required style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; margin-top: 8px;">
+                                </div>
+                                
+                                <div class="form-group" style="margin-top: 16px;">
+                                    <label class="form-label" for="settings-new-password">Nova Senha</label>
+                                    <input type="password" class="form-input" id="settings-new-password" placeholder="Mínimo de 8 caracteres" required style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; margin-top: 8px;">
+                                    
+                                    <!-- Strength Indicator UI -->
+                                    <div class="password-strength-meter" style="height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-top: 8px; overflow: hidden;">
+                                        <div class="strength-bar" id="strength-bar" style="width: 0%; height: 100%; background: var(--rose-500); transition: width 0.3s, background-color 0.3s;"></div>
+                                    </div>
+                                    <div class="strength-text" id="strength-text" style="font-size: 11px; color: var(--slate-400); margin-top: 4px;">Força: -</div>
+                                    <ul class="strength-requirements" style="list-style: none; padding-left: 0; margin-top: 12px; display: flex; flex-direction: column; gap: 6px; font-size: 11px;">
+                                        <li id="req-length" class="req-item invalid" style="color: var(--rose-400); display: flex; align-items: center; gap: 6px;">✕ Mínimo 8 caracteres</li>
+                                        <li id="req-case" class="req-item invalid" style="color: var(--rose-400); display: flex; align-items: center; gap: 6px;">✕ Letras maiúsculas e minúsculas</li>
+                                        <li id="req-number" class="req-item invalid" style="color: var(--rose-400); display: flex; align-items: center; gap: 6px;">✕ Pelo menos um número</li>
+                                        <li id="req-special" class="req-item invalid" style="color: var(--rose-400); display: flex; align-items: center; gap: 6px;">✕ Pelo menos um caractere especial (!@#$ etc)</li>
+                                    </ul>
+                                </div>
+
+                                <div class="form-group" style="margin-top: 24px;">
+                                    <label class="form-label" for="settings-master-key">Chave Mestra de Recuperação</label>
+                                    <input type="text" class="form-input" id="settings-master-key" placeholder="Configure uma chave mestra robusta para backdoor de segurança" required style="width: 100%; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #fff; margin-top: 8px;">
+                                    <small style="color: var(--slate-400); display: block; margin-top: 6px; font-size: 11px; line-height: 1.4;">Esta chave permite que o administrador recupere o acesso a qualquer conta bypassando a senha original.</small>
+                                </div>
+                                
+                                <button type="submit" class="btn-save-settings" style="margin-top: 20px; padding: 10px 20px; background: var(--indigo-600); border: none; border-radius: 6px; color: #fff; font-weight: 600; cursor: pointer; transition: background 0.2s;">Atualizar Segurança</button>
+                            </form>
+                        </div>
+
+                        <!-- AI Form -->
+                        <div class="settings-section-content" id="subtab-ai" style="display: none;">
+                            <h3>Parâmetros da Inteligência Artificial</h3>
+                            <p class="section-desc">Ajuste fino da sensibilidade de análise do YOLOv8 e da taxa de quadros processados (FPS) para calibrar uso de CPU/GPU.</p>
+                            
+                            <form id="form-settings-ai" class="settings-form">
+                                <div class="form-group">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <label class="form-label" style="margin-bottom: 0;">Sensibilidade Global da IA</label>
+                                        <span class="range-val text-indigo" id="ai-sensitivity-val" style="font-weight: 700;">75%</span>
+                                    </div>
+                                    <input type="range" min="15" max="95" step="5" value="75" class="range-slider font-slider" id="settings-ai-sensitivity" style="width: 100%; accent-color: var(--indigo-500); cursor: pointer;">
+                                    <small style="color: var(--slate-400); display: block; margin-top: 6px; font-size: 11px; line-height: 1.4;">Valores menores exigem maior confiança para alarmar. Valores altos aumentam a sensibilidade da detecção.</small>
+                                </div>
+
+                                <div class="form-group" style="margin-top: 24px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                        <label class="form-label" style="margin-bottom: 0;">Frequência de Inferência (FPS)</label>
+                                        <span class="range-val text-cyan" id="ai-fps-val" style="font-weight: 700;">10 FPS</span>
+                                    </div>
+                                    <input type="range" min="1" max="30" step="1" value="10" class="range-slider font-slider" id="settings-ai-fps" style="width: 100%; accent-color: var(--cyan-500); cursor: pointer;">
+                                    <small style="color: var(--slate-400); display: block; margin-top: 6px; font-size: 11px; line-height: 1.4;">Controla o atraso (sleep) no laço da IA. 30 FPS representa processamento contínuo em tempo integral.</small>
+                                </div>
+                                
+                                <button type="submit" class="btn-save-settings" style="margin-top: 24px; padding: 10px 20px; background: var(--indigo-600); border: none; border-radius: 6px; color: #fff; font-weight: 600; cursor: pointer; transition: background 0.2s;">Salvar Preferências de IA</button>
+                            </form>
                         </div>
                     </div>
                 </div>
