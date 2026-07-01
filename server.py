@@ -136,7 +136,7 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT created_at, severity, title, camera_name, confidence, id 
+                    SELECT created_at, severity, title, camera_name, confidence, id, details, trigger_type 
                     FROM public.alertas 
                     WHERE tenant_id = %s OR tenant_id = '65244ad5-47c7-4905-89c9-0efad0e9d7b6'
                     ORDER BY created_at DESC 
@@ -155,7 +155,9 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         "label": label,
                         "title": row[2],
                         "camera": row[3] or "Câmera Geral",
-                        "confidence": int(row[4]) if row[4] is not None else 90
+                        "confidence": int(row[4]) if row[4] is not None else 90,
+                        "details": row[6] or "Alerta detectado por processador IA local.",
+                        "trigger": row[7] or "Detecção automática."
                     })
                 cursor.close()
                 self.send_success_response({"success": True, "alerts": alerts})

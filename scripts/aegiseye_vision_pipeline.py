@@ -576,8 +576,8 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 p_state["last_look_at_camera_time"] = None
 
             # Calculate Dynamic Risk Percentage (0% to 100%)
-            risk_percentage = 0
-            reasons = []
+            risk_percentage = 20
+            reasons = ["Pessoa identificada em área de monitoramento (+20%)"]
             
             # 1. Standing still (Loitering) in ROI
             still_s = p_state["accumulated_standing_still"]
@@ -623,20 +623,34 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
             if risk_percentage >= 70 and "critical" not in p_state["alerts_fired"]:
                 p_state["alerts_fired"].add("critical")
                 details = f"Detecção de Alto Risco de furto para a Pessoa #{track_id}. Motivos analisados pela IA: " + ", ".join(reasons)
+                
+                title = f"Alerta de Segurança - Risco Crítico ({risk_percentage}%)"
+                if p_state["concealment_events"] > 0:
+                    title = f"Ocultamento Suspeito (Pessoa #{track_id})"
+                elif p_state["accumulated_standing_still"] > LINGERING_THRESHOLD:
+                    title = f"Tempo de Permanência Alto (Adega)"
+                
                 send_webhook_alert(
-                    title=f"Alerta de Segurança - Risco Crítico ({risk_percentage}%)",
+                    title=title,
                     details=details,
                     severity="critical",
                     trigger_type="CONCEALMENT_ROI",
                     confidence=risk_percentage
                 )
                 
-            # Warning Alert: 40% <= Risk < 70%
-            elif 40 <= risk_percentage < 70 and "warning" not in p_state["alerts_fired"]:
+            # Warning Alert: 15% <= Risk < 70%
+            elif 15 <= risk_percentage < 70 and "warning" not in p_state["alerts_fired"]:
                 p_state["alerts_fired"].add("warning")
                 details = f"Comportamento atípico detectado para a Pessoa #{track_id}. Fatores de risco: " + ", ".join(reasons)
+                
+                title = f"Aviso de Atenção - Risco Médio ({risk_percentage}%)"
+                if p_state["has_bag"]:
+                    title = f"Porte de Mochila/Sacola em Área Restrita"
+                elif p_state["accumulated_standing_still"] > 3.0:
+                    title = f"Permanência Elevada em Zona de Risco"
+                
                 send_webhook_alert(
-                    title=f"Aviso de Atenção - Risco Médio ({risk_percentage}%)",
+                    title=title,
                     details=details,
                     severity="warning",
                     trigger_type="SUSPICIOUS_BEHAVIOR",
@@ -847,7 +861,25 @@ if __name__ == '__main__':
     print(" AegisEye AI Edge Node - Pipeline de Visão Computacional")
     print("=" * 60)
     
-    simulate_mode = "--simulate" in sys.argv or not RTSP_URL
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--rtsp', type=str, default="")
+    parser.add_argument('--camera-id', type=str, default="")
+    parser.add_argument('--name', type=str, default="")
+    parser.add_argument('--tenant-id', type=str, default="")
+    parser.add_argument('--simulate', action='store_true')
+    args = parser.parse_known_args()[0]
+    
+    if args.rtsp:
+        RTSP_URL = args.rtsp
+    if args.camera_id:
+        CAMERA_ID = args.camera_id
+    if args.name:
+        CAMERA_NAME = args.name
+    if args.tenant_id:
+        TENANT_ID = args.tenant_id
+        
+    simulate_mode = args.simulate or not RTSP_URL
     
     # Initialize the capture pipeline
     pipeline = VideoCapturePipeline(RTSP_URL, simulate_mode)
