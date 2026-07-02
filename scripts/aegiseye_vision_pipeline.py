@@ -521,7 +521,8 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     "last_concealment_event_time": 0.0,
                     "alerts_fired": set(),
                     "highest_risk_percentage": 0,
-                    "detection_conf": p["conf"]
+                    "detection_conf": p["conf"],
+                    "missing_frames": 0
                 }
                 print(f"[AI-INFO] Rastreando nova pessoa #{track_id} em ({pcx}, {pcy}). ROI={in_roi}")
                 
@@ -535,6 +536,12 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     p_state["first_in_roi_time"] = current_time
             else:
                 p_state["first_in_roi_time"] = None
+                
+            # Log monitored track details for validation
+            duration_in_roi = 0.0
+            if p_state.get("first_in_roi_time") is not None:
+                duration_in_roi = current_time - p_state["first_in_roi_time"]
+            print(f"[DEBUG-TRACK] Monitorando track_id: {track_id} em ({pcx}, {pcy}) | ROI={in_roi} | Duracao na ROI={duration_in_roi:.1f}s")
                 
             # Update standing still / lingering heuristic
             p_state["position_history"].append((pcx, pcy, current_time))
@@ -730,6 +737,11 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 log_tag = "[AI-ALERT]" if risk_percentage >= 70 else ("[AI-WARNING]" if risk_percentage >= 40 else "[AI-MONITOR]")
                 print(f"{log_tag} Pessoa #{track_id}: Risco={risk_percentage}% | Confiança={p_state.get('detection_conf', 0.0):.2f} | ROI={in_roi} | Parado={still_s:.1f}s | Bolsa={p_state['has_bag']} | Olhar Câmera={cam_s:.1f}s | Motivos: {reasons_str}")
 
+            # Calculate duration in ROI
+            duration_in_roi = 0.0
+            if p_state.get("first_in_roi_time") is not None:
+                duration_in_roi = current_time - p_state["first_in_roi_time"]
+
             # Send Alerts based on Risk thresholds
             # Critical Alert: Risk >= 70%
             if risk_percentage >= 70 and "critical" not in p_state["alerts_fired"]:
@@ -742,22 +754,25 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 elif p_state["accumulated_standing_still"] > LINGERING_THRESHOLD:
                     title = f"Tempo de Permanência Alto (Adega)"
                 
-                # Check confidence limit
+                # Check confidence limit and ROI lingering duration
                 det_conf_val = p_state.get("detection_conf", 1.0)
-                if det_conf_val >= 0.85:
-                    send_webhook_alert(
-                        title=title,
-                        details=details,
-                        severity="critical",
-                        trigger_type="CONCEALMENT_ROI",
-                        confidence=risk_percentage,
-                        tenant_id=tenant_id,
-                        camera_id=camera_id,
-                        camera_name=camera_name,
-                        user_id=user_id
-                    )
+                if duration_in_roi >= 5.0:
+                    if det_conf_val >= 0.85:
+                        send_webhook_alert(
+                            title=title,
+                            details=details,
+                            severity="critical",
+                            trigger_type="CONCEALMENT_ROI",
+                            confidence=risk_percentage,
+                            tenant_id=tenant_id,
+                            camera_id=camera_id,
+                            camera_name=camera_name,
+                            user_id=user_id
+                        )
+                    else:
+                        print(f"[AI-INFO-INTERNAL] Alerta crítico suprimido para n8n: Confiança de detecção ({det_conf_val:.2f}) < 85%. Logado apenas internamente.")
                 else:
-                    print(f"[AI-INFO-INTERNAL] Alerta crítico suprimido para n8n: Confiança de detecção ({det_conf_val:.2f}) < 85%. Logado apenas internamente.")
+                    print(f"[AI-INFO-INTERNAL] Alerta crítico suprimido para n8n: Pessoa #{track_id} permaneceu na ROI por apenas {duration_in_roi:.1f}s (mínimo 5s).")
                 
             # Warning Alert: 15% <= Risk < 70%
             elif 15 <= risk_percentage < 70 and "warning" not in p_state["alerts_fired"]:
@@ -770,31 +785,40 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 elif p_state["accumulated_standing_still"] > 3.0:
                     title = f"Permanência Elevada em Zona de Risco"
                 
-                # Check confidence limit
+                # Check confidence limit and ROI lingering duration
                 det_conf_val = p_state.get("detection_conf", 1.0)
-                if det_conf_val >= 0.85:
-                    send_webhook_alert(
-                        title=title,
-                        details=details,
-                        severity="warning",
-                        trigger_type="SUSPICIOUS_BEHAVIOR",
-                        confidence=risk_percentage,
-                        tenant_id=tenant_id,
-                        camera_id=camera_id,
-                        camera_name=camera_name,
-                        user_id=user_id
-                    )
+                if duration_in_roi >= 5.0:
+                    if det_conf_val >= 0.85:
+                        send_webhook_alert(
+                            title=title,
+                            details=details,
+                            severity="warning",
+                            trigger_type="SUSPICIOUS_BEHAVIOR",
+                            confidence=risk_percentage,
+                            tenant_id=tenant_id,
+                            camera_id=camera_id,
+                            camera_name=camera_name,
+                            user_id=user_id
+                        )
+                    else:
+                        print(f"[AI-INFO-INTERNAL] Alerta de atenção suprimido para n8n: Confiança de detecção ({det_conf_val:.2f}) < 85%. Logado apenas internamente.")
                 else:
-                    print(f"[AI-INFO-INTERNAL] Alerta de atenção suprimido para n8n: Confiança de detecção ({det_conf_val:.2f}) < 85%. Logado apenas internamente.")
+                    print(f"[AI-INFO-INTERNAL] Alerta de atenção suprimido para n8n: Pessoa #{track_id} permaneceu na ROI por apenas {duration_in_roi:.1f}s (mínimo 5s).")
 
-        # Cleanup expired tracks (not seen for more than 4 seconds)
+        # Cleanup expired tracks (not seen for 10 frames or more)
         expired_ids = []
         for tid, p_state in list(tracked_persons.items()):
-            if current_time - p_state["last_seen"] > 4.0:
+            if tid not in detected_track_ids:
+                p_state["missing_frames"] = p_state.get("missing_frames", 0) + 1
+            else:
+                p_state["missing_frames"] = 0
+                
+            # Keep history if missing for less than 10 frames (occlusao rapida)
+            if p_state["missing_frames"] >= 10:
                 expired_ids.append(tid)
                 
         for tid in expired_ids:
-            print(f"[AI-INFO] Pessoa #{tid} saiu de cena. Finalizando rastreamento.")
+            print(f"[AI-INFO] Pessoa #{tid} saiu de cena por 10 frames. Finalizando rastreamento.")
             tracked_persons.pop(tid, None)
 
 def ai_inference_loop(simulate=False):
