@@ -416,6 +416,34 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
+def process_skeleton_keypoints(person_keypoints, objects):
+    """
+    [FUTURE YOLOv8-POSE INTEGRATION STUB]
+    Esta função processará os pontos do esqueleto (keypoints) da pessoa e comparará
+    as coordenadas dos membros superiores (como pulsos e mãos) com as bounding boxes dos produtos.
+    
+    COCO Keypoints de Interesse:
+    - 9: Left Wrist (Pulso Esquerdo)
+    - 10: Right Wrist (Pulso Direito)
+    - 7: Left Elbow (Cotovelo Esquerdo)
+    - 8: Right Elbow (Cotovelo Direito)
+    """
+    if person_keypoints is not None:
+        for kp in person_keypoints:
+            # Exemplo de extração de pontos:
+            # left_wrist = kp[9]   # (x, y, conf)
+            # right_wrist = kp[10] # (x, y, conf)
+            # 
+            # for obj in objects:
+            #     ox1, oy1, ow, oh = obj["bbox"]
+            #     ox2, oy2 = ox1 + ow, oy1 + oh
+            #     
+            #     # Interseção do esqueleto da mão com bounding box do produto
+            #     if (ox1 <= left_wrist[0] <= ox2 and oy1 <= left_wrist[1] <= oy2) or \
+            #        (ox1 <= right_wrist[0] <= ox2 and oy1 <= right_wrist[1] <= oy2):
+            #         print(f"[POSE-INFO] Mão/pulso intersectando objeto {obj['class']}!")
+            pass
+
 def process_detections_and_infractions(detections, W, H, frame=None, simulate=False, camera_name=None, camera_id=None, tenant_id=None, user_id=None):
     """Processes detections and updates infraction timers with advanced behavior tracking & log throttling"""
     global tracked_persons
@@ -492,12 +520,14 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     "concealment_events": 0,
                     "last_concealment_event_time": 0.0,
                     "alerts_fired": set(),
-                    "highest_risk_percentage": 0
+                    "highest_risk_percentage": 0,
+                    "detection_conf": p["conf"]
                 }
                 print(f"[AI-INFO] Rastreando nova pessoa #{track_id} em ({pcx}, {pcy}). ROI={in_roi}")
                 
             p_state = tracked_persons[track_key]
             p_state["last_seen"] = current_time
+            p_state["detection_conf"] = p["conf"]
             
             # Update ROI lingering timer
             if in_roi:
@@ -540,6 +570,9 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
             p_state["last_position"] = (pcx, pcy)
             
             # Check active bag / object association and concealment
+            # [FUTURE YOLOv8-POSE INTEGRATION] Keypoints intersection placeholder
+            process_skeleton_keypoints(None, objects)
+            
             if "nearby_objects" not in p_state:
                 p_state["nearby_objects"] = {} # class_name -> {"last_seen": t, "pos": (x,y)}
                 
@@ -572,10 +605,18 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     is_small_object = obj_cls in ["cell phone", "umbrella"]
                     if is_small_object:
                         if (py1 + 0.3*ph <= ocy <= py1 + 0.85*ph) and (px1 <= ocx <= px1 + pw):
-                            if current_time - p_state["last_concealment_event_time"] > 5.0:
-                                p_state["concealment_events"] += 1
-                                p_state["last_concealment_event_time"] = current_time
-                                print(f"[AI-ALERT] Ação de ocultamento detectada: Pessoa #{track_id} com objeto '{obj_cls}' na região corporal.")
+                            # Duration filter: only flag if loitered in ROI for >= 5s
+                            duration_in_roi = 0.0
+                            if p_state.get("first_in_roi_time") is not None:
+                                duration_in_roi = current_time - p_state["first_in_roi_time"]
+                            
+                            if duration_in_roi >= 5.0:
+                                if current_time - p_state["last_concealment_event_time"] > 5.0:
+                                    p_state["concealment_events"] += 1
+                                    p_state["last_concealment_event_time"] = current_time
+                                    print(f"[AI-ALERT] Ação de ocultamento detectada: Pessoa #{track_id} com objeto '{obj_cls}' na região corporal.")
+                            else:
+                                print(f"[AI-INFO] Ocultamento ignorado (trânsito rápido): Pessoa #{track_id} está na ROI há apenas {duration_in_roi:.1f}s (mínimo 5s).")
             
             # Temporal concealment heuristic: small object disappears near person
             for old_cls, obj_info in list(p_state["nearby_objects"].items()):
@@ -585,10 +626,18 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                         ox, oy = obj_info["pos"]
                         # Verify if disappearance happened near the person's torso region
                         if (py1 + 0.25*ph <= oy <= py1 + 0.85*ph) and (px1 - 20 <= ox <= px1 + pw + 20):
-                            if current_time - p_state["last_concealment_event_time"] > 5.0:
-                                p_state["concealment_events"] += 1
-                                p_state["last_concealment_event_time"] = current_time
-                                print(f"[AI-ALERT] Ocultamento Temporal: Objeto '{old_cls}' sumiu na área corporal da Pessoa #{track_id}!")
+                            # Duration filter: only flag if loitered in ROI for >= 5s
+                            duration_in_roi = 0.0
+                            if p_state.get("first_in_roi_time") is not None:
+                                duration_in_roi = current_time - p_state["first_in_roi_time"]
+                                
+                            if duration_in_roi >= 5.0:
+                                if current_time - p_state["last_concealment_event_time"] > 5.0:
+                                    p_state["concealment_events"] += 1
+                                    p_state["last_concealment_event_time"] = current_time
+                                    print(f"[AI-ALERT] Ocultamento Temporal: Objeto '{old_cls}' sumiu na área corporal da Pessoa #{track_id}!")
+                            else:
+                                print(f"[AI-INFO] Ocultamento temporal ignorado (trânsito rápido): Pessoa #{track_id} está na ROI há apenas {duration_in_roi:.1f}s (mínimo 5s).")
                     if time_since_seen > 3.0:
                         p_state["nearby_objects"].pop(old_cls, None)
             
@@ -677,10 +726,9 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
             if (current_time - last_logged > 2.0) or (risk_diff >= 15) or (risk_percentage >= 70 and "critical" not in p_state["alerts_fired"]):
                 p_state["last_logged"] = current_time
                 p_state["highest_risk_percentage"] = max(p_state["highest_risk_percentage"], risk_percentage)
-                
                 reasons_str = "; ".join(reasons) if reasons else "Nenhuma ação suspeita"
                 log_tag = "[AI-ALERT]" if risk_percentage >= 70 else ("[AI-WARNING]" if risk_percentage >= 40 else "[AI-MONITOR]")
-                print(f"{log_tag} Pessoa #{track_id}: Risco={risk_percentage}% | ROI={in_roi} | Parado={still_s:.1f}s | Bolsa={p_state['has_bag']} | Olhar Câmera={cam_s:.1f}s | Motivos: {reasons_str}")
+                print(f"{log_tag} Pessoa #{track_id}: Risco={risk_percentage}% | Confiança={p_state.get('detection_conf', 0.0):.2f} | ROI={in_roi} | Parado={still_s:.1f}s | Bolsa={p_state['has_bag']} | Olhar Câmera={cam_s:.1f}s | Motivos: {reasons_str}")
 
             # Send Alerts based on Risk thresholds
             # Critical Alert: Risk >= 70%
@@ -694,17 +742,22 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 elif p_state["accumulated_standing_still"] > LINGERING_THRESHOLD:
                     title = f"Tempo de Permanência Alto (Adega)"
                 
-                send_webhook_alert(
-                    title=title,
-                    details=details,
-                    severity="critical",
-                    trigger_type="CONCEALMENT_ROI",
-                    confidence=risk_percentage,
-                    tenant_id=tenant_id,
-                    camera_id=camera_id,
-                    camera_name=camera_name,
-                    user_id=user_id
-                )
+                # Check confidence limit
+                det_conf_val = p_state.get("detection_conf", 1.0)
+                if det_conf_val >= 0.85:
+                    send_webhook_alert(
+                        title=title,
+                        details=details,
+                        severity="critical",
+                        trigger_type="CONCEALMENT_ROI",
+                        confidence=risk_percentage,
+                        tenant_id=tenant_id,
+                        camera_id=camera_id,
+                        camera_name=camera_name,
+                        user_id=user_id
+                    )
+                else:
+                    print(f"[AI-INFO-INTERNAL] Alerta crítico suprimido para n8n: Confiança de detecção ({det_conf_val:.2f}) < 85%. Logado apenas internamente.")
                 
             # Warning Alert: 15% <= Risk < 70%
             elif 15 <= risk_percentage < 70 and "warning" not in p_state["alerts_fired"]:
@@ -717,17 +770,22 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 elif p_state["accumulated_standing_still"] > 3.0:
                     title = f"Permanência Elevada em Zona de Risco"
                 
-                send_webhook_alert(
-                    title=title,
-                    details=details,
-                    severity="warning",
-                    trigger_type="SUSPICIOUS_BEHAVIOR",
-                    confidence=risk_percentage,
-                    tenant_id=tenant_id,
-                    camera_id=camera_id,
-                    camera_name=camera_name,
-                    user_id=user_id
-                )
+                # Check confidence limit
+                det_conf_val = p_state.get("detection_conf", 1.0)
+                if det_conf_val >= 0.85:
+                    send_webhook_alert(
+                        title=title,
+                        details=details,
+                        severity="warning",
+                        trigger_type="SUSPICIOUS_BEHAVIOR",
+                        confidence=risk_percentage,
+                        tenant_id=tenant_id,
+                        camera_id=camera_id,
+                        camera_name=camera_name,
+                        user_id=user_id
+                    )
+                else:
+                    print(f"[AI-INFO-INTERNAL] Alerta de atenção suprimido para n8n: Confiança de detecção ({det_conf_val:.2f}) < 85%. Logado apenas internamente.")
 
         # Cleanup expired tracks (not seen for more than 4 seconds)
         expired_ids = []
@@ -796,7 +854,7 @@ def ai_inference_loop(simulate=False):
         detections = []
         if model and not simulate:
             try:
-                results = model(img_to_check, verbose=False)[0]
+                results = model.track(img_to_check, persist=True, tracker="bytetrack.yaml", verbose=False)[0]
                 for box in results.boxes:
                     cls_id = int(box.cls[0])
                     cls_name = results.names[cls_id]
