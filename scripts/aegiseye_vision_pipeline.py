@@ -91,7 +91,7 @@ def is_point_in_polygon(x, y, poly):
         p1x, p1y = p2x, p2y
     return inside
 
-def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEALMENT_ROI", confidence=90.0, tenant_id=None, camera_id=None, camera_name=None, user_id=None):
+def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEALMENT_ROI", confidence=90.0, tenant_id=None, camera_id=None, camera_name=None, user_id=None, track_id=None):
     """Sends the alert metadata payload to n8n backend webhook asynchronously"""
     payload = {
         "tenant_id": tenant_id or TENANT_ID,
@@ -102,7 +102,8 @@ def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEA
         "title": title,
         "details": details,
         "confidence": float(confidence),
-        "trigger_type": trigger_type
+        "trigger_type": trigger_type,
+        "track_id": track_id
     }
     
     def post_req():
@@ -522,13 +523,20 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     "alerts_fired": set(),
                     "highest_risk_percentage": 0,
                     "detection_conf": p["conf"],
-                    "missing_frames": 0
+                    "missing_frames": 0,
+                    "conf_history": [p["conf"]],
+                    "last_alert_time": 0.0
                 }
                 print(f"[AI-INFO] Rastreando nova pessoa #{track_id} em ({pcx}, {pcy}). ROI={in_roi}")
                 
             p_state = tracked_persons[track_key]
             p_state["last_seen"] = current_time
             p_state["detection_conf"] = p["conf"]
+            if "conf_history" not in p_state:
+                p_state["conf_history"] = []
+            p_state["conf_history"].append(p["conf"])
+            if len(p_state["conf_history"]) > 3:
+                p_state["conf_history"].pop(0)
             
             # Update ROI lingering timer
             if in_roi:
@@ -744,8 +752,7 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
 
             # Send Alerts based on Risk thresholds
             # Critical Alert: Risk >= 70%
-            if risk_percentage >= 70 and "critical" not in p_state["alerts_fired"]:
-                p_state["alerts_fired"].add("critical")
+            if risk_percentage >= 70:
                 details = f"Detecção de Alto Risco de furto para a Pessoa #{track_id}. Motivos analisados pela IA: " + ", ".join(reasons)
                 
                 title = f"Alerta de Segurança - Risco Crítico ({risk_percentage}%)"
@@ -754,29 +761,42 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 elif p_state["accumulated_standing_still"] > LINGERING_THRESHOLD:
                     title = f"Tempo de Permanência Alto (Adega)"
                 
-                # Check confidence limit and ROI lingering duration
-                det_conf_val = p_state.get("detection_conf", 1.0)
+                # Check confidence limit, cooldown remaining, and ROI lingering duration
+                # Enforce average confidence of last 3 frames >= 0.85
+                avg_conf = sum(p_state["conf_history"]) / 3.0 if len(p_state["conf_history"]) >= 3 else 0.0
+                cooldown_remaining = 60.0 - (current_time - p_state.get("last_alert_time", 0.0))
+                
                 if duration_in_roi >= 5.0:
-                    if det_conf_val >= 0.85:
-                        send_webhook_alert(
-                            title=title,
-                            details=details,
-                            severity="critical",
-                            trigger_type="CONCEALMENT_ROI",
-                            confidence=risk_percentage,
-                            tenant_id=tenant_id,
-                            camera_id=camera_id,
-                            camera_name=camera_name,
-                            user_id=user_id
-                        )
+                    if cooldown_remaining <= 0.0:
+                        if avg_conf >= 0.85:
+                            p_state["last_alert_time"] = current_time
+                            send_webhook_alert(
+                                title=title,
+                                details=details,
+                                severity="critical",
+                                trigger_type="CONCEALMENT_ROI",
+                                confidence=risk_percentage,
+                                tenant_id=tenant_id,
+                                camera_id=camera_id,
+                                camera_name=camera_name,
+                                user_id=user_id,
+                                track_id=track_id
+                            )
+                        else:
+                            if current_time - p_state.get("last_conf_log_time_crit", 0.0) >= 5.0:
+                                p_state["last_conf_log_time_crit"] = current_time
+                                print(f"[AI-INFO-INTERNAL] Alerta crítico suprimido para n8n: Média de confiança de 3 frames ({avg_conf:.2f}) < 85%. Logado apenas internamente.")
                     else:
-                        print(f"[AI-INFO-INTERNAL] Alerta crítico suprimido para n8n: Confiança de detecção ({det_conf_val:.2f}) < 85%. Logado apenas internamente.")
+                        if current_time - p_state.get("last_cooldown_log_time_crit", 0.0) >= 10.0:
+                            p_state["last_cooldown_log_time_crit"] = current_time
+                            print(f"[AI-INFO-INTERNAL] Alerta crítico suprimido para n8n: Cooldown ativo para Pessoa #{track_id} (tempo restante: {cooldown_remaining:.1f}s).")
                 else:
-                    print(f"[AI-INFO-INTERNAL] Alerta crítico suprimido para n8n: Pessoa #{track_id} permaneceu na ROI por apenas {duration_in_roi:.1f}s (mínimo 5s).")
+                    if current_time - p_state.get("last_roi_log_time_crit", 0.0) >= 10.0:
+                        p_state["last_roi_log_time_crit"] = current_time
+                        print(f"[AI-INFO-INTERNAL] Alerta crítico suprimido para n8n: Pessoa #{track_id} permaneceu na ROI por apenas {duration_in_roi:.1f}s (mínimo 5s).")
                 
             # Warning Alert: 15% <= Risk < 70%
-            elif 15 <= risk_percentage < 70 and "warning" not in p_state["alerts_fired"]:
-                p_state["alerts_fired"].add("warning")
+            elif 15 <= risk_percentage < 70:
                 details = f"Comportamento atípico detectado para a Pessoa #{track_id}. Fatores de risco: " + ", ".join(reasons)
                 
                 title = f"Aviso de Atenção - Risco Médio ({risk_percentage}%)"
@@ -785,25 +805,39 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                 elif p_state["accumulated_standing_still"] > 3.0:
                     title = f"Permanência Elevada em Zona de Risco"
                 
-                # Check confidence limit and ROI lingering duration
-                det_conf_val = p_state.get("detection_conf", 1.0)
+                # Check confidence limit, cooldown remaining, and ROI lingering duration
+                # Enforce average confidence of last 3 frames >= 0.85
+                avg_conf = sum(p_state["conf_history"]) / 3.0 if len(p_state["conf_history"]) >= 3 else 0.0
+                cooldown_remaining = 60.0 - (current_time - p_state.get("last_alert_time", 0.0))
+                
                 if duration_in_roi >= 5.0:
-                    if det_conf_val >= 0.85:
-                        send_webhook_alert(
-                            title=title,
-                            details=details,
-                            severity="warning",
-                            trigger_type="SUSPICIOUS_BEHAVIOR",
-                            confidence=risk_percentage,
-                            tenant_id=tenant_id,
-                            camera_id=camera_id,
-                            camera_name=camera_name,
-                            user_id=user_id
-                        )
+                    if cooldown_remaining <= 0.0:
+                        if avg_conf >= 0.85:
+                            p_state["last_alert_time"] = current_time
+                            send_webhook_alert(
+                                title=title,
+                                details=details,
+                                severity="warning",
+                                trigger_type="SUSPICIOUS_BEHAVIOR",
+                                confidence=risk_percentage,
+                                tenant_id=tenant_id,
+                                camera_id=camera_id,
+                                camera_name=camera_name,
+                                user_id=user_id,
+                                track_id=track_id
+                            )
+                        else:
+                            if current_time - p_state.get("last_conf_log_time_warn", 0.0) >= 5.0:
+                                p_state["last_conf_log_time_warn"] = current_time
+                                print(f"[AI-INFO-INTERNAL] Alerta de atenção suprimido para n8n: Média de confiança de 3 frames ({avg_conf:.2f}) < 85%. Logado apenas internamente.")
                     else:
-                        print(f"[AI-INFO-INTERNAL] Alerta de atenção suprimido para n8n: Confiança de detecção ({det_conf_val:.2f}) < 85%. Logado apenas internamente.")
+                        if current_time - p_state.get("last_cooldown_log_time_warn", 0.0) >= 10.0:
+                            p_state["last_cooldown_log_time_warn"] = current_time
+                            print(f"[AI-INFO-INTERNAL] Alerta de atenção suprimido para n8n: Cooldown ativo para Pessoa #{track_id} (tempo restante: {cooldown_remaining:.1f}s).")
                 else:
-                    print(f"[AI-INFO-INTERNAL] Alerta de atenção suprimido para n8n: Pessoa #{track_id} permaneceu na ROI por apenas {duration_in_roi:.1f}s (mínimo 5s).")
+                    if current_time - p_state.get("last_roi_log_time_warn", 0.0) >= 10.0:
+                        p_state["last_roi_log_time_warn"] = current_time
+                        print(f"[AI-INFO-INTERNAL] Alerta de atenção suprimido para n8n: Pessoa #{track_id} permaneceu na ROI por apenas {duration_in_roi:.1f}s (mínimo 5s).")
 
         # Cleanup expired tracks (not seen for 10 frames or more)
         expired_ids = []
