@@ -118,6 +118,7 @@ def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEA
             with urllib.request.urlopen(req, timeout=5) as response:
                 res_data = response.read().decode('utf-8')
                 print(f"[API] Alerta enviado com sucesso! Resposta: {res_data}")
+                print(f"[WEBHOOK DISPATCHED] ID: {track_id} | Confidence: {confidence} | Event: {trigger_type}")
         except Exception as ex:
             print(f"[API] Erro ao enviar alerta para o n8n: {ex}")
 
