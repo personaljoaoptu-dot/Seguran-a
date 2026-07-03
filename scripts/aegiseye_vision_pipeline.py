@@ -121,8 +121,10 @@ BAG_PERSISTENCE_DURATION = 12.0 # Keep "carrying bag" state active for 12 second
 LINGERING_THRESHOLD = 15.0 # Segundos de permanência no ROI para loitering
 CONCEALMENT_DISTANCE_THRESHOLD = 120.0 # Pixels (Euclidean distance) between person center and bag/object to assume interaction
 
-def is_point_in_polygon(x, y, poly):
+def is_point_in_polygon(point, polygon):
     """Ray-casting algorithm in Python for geometry check (Point in Polygon)"""
+    x, y = point
+    poly = polygon
     n = len(poly)
     inside = False
     p1x, p1y = poly[0]
@@ -514,7 +516,7 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
         cy = int(bbox[1] + bbox[3] / 2)
         
         # Check ROI intersection using centroid (centroide)
-        in_roi = is_point_in_polygon(cx, cy, roi_pixels)
+        in_roi = is_point_in_polygon((cx, cy), roi_pixels)
         
         if cls == "person":
             if in_roi:
@@ -525,6 +527,9 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     "in_roi": in_roi,
                     "bbox": bbox
                 })
+            else:
+                track_id = det.get("track_id", 0)
+                print(f"[ROI] Pessoa #{track_id} ignorada: fora da zona de interesse.")
         elif cls in ["handbag", "backpack", "bag", "suitcase", "briefcase", "cell phone", "snowboard", "skateboard", "umbrella", "elephant", "surfboard"]:
             if in_roi:
                 objects.append({
@@ -1006,11 +1011,19 @@ def ai_inference_loop(simulate=False):
                 print(f"[ENGINE] Erro na inferência YOLO: {e}")
         elif simulate:
             if frame_count > 10:
+                # Person 312: Inside ROI
                 detections.append({
                     "track_id": 312,
                     "bbox": [800, 400, 200, 450],
                     "class": "person",
                     "conf": 0.94
+                })
+                # Person 313: Outside ROI (centroid: 35, 50)
+                detections.append({
+                    "track_id": 313,
+                    "bbox": [10, 10, 50, 80],
+                    "class": "person",
+                    "conf": 0.91
                 })
                 detections.append({
                     "bbox": [850, 600, 80, 80],
