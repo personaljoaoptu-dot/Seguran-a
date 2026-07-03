@@ -47,6 +47,53 @@ ROI_POLYGON = [
     [0.02, 0.98]  
 ]
 
+def load_roi_config(camera_id=None):
+    global ROI_POLYGON
+    config_path = "config_roi.json"
+    
+    # Default fallback polygon
+    default_poly = [
+        [0.02, 0.02],
+        [0.98, 0.02],
+        [0.98, 0.98],
+        [0.02, 0.98]
+    ]
+    
+    if not os.path.exists(config_path):
+        initial_config = {
+            "camera_rois": {
+                "default": default_poly
+            }
+        }
+        try:
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(initial_config, f, indent=4)
+            print("[CONFIG-ROI] Arquivo config_roi.json criado com os polígonos padrões.")
+        except Exception as e:
+            print(f"[CONFIG-ROI] Erro ao criar config_roi.json padrão: {e}")
+            
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        rois = config.get("camera_rois", {})
+        
+        if camera_id and camera_id in rois:
+            ROI_POLYGON = rois[camera_id]
+            print(f"[CONFIG-ROI] Carregado polígono de ROI específico para câmera ID '{camera_id}'.")
+        elif "default" in rois:
+            ROI_POLYGON = rois["default"]
+            print("[CONFIG-ROI] Carregado polígono de ROI padrão ('default').")
+        elif rois:
+            first_key = list(rois.keys())[0]
+            ROI_POLYGON = rois[first_key]
+            print(f"[CONFIG-ROI] Carregado polígono de ROI da chave '{first_key}'.")
+        else:
+            ROI_POLYGON = default_poly
+            print("[CONFIG-ROI] Nenhuma ROI válida encontrada. Usando o polígono padrão.")
+    except Exception as e:
+        ROI_POLYGON = default_poly
+        print(f"[CONFIG-ROI] Falha ao carregar config_roi.json: {e}. Usando o polígono padrão.")
+
 # Load Haar Cascades for face detection (Looking at camera heuristic)
 face_cascade = None
 profile_cascade = None
@@ -466,29 +513,27 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
         cx = int(bbox[0] + bbox[2] / 2)
         cy = int(bbox[1] + bbox[3] / 2)
         
-        # Bottom-center of the bbox (for ROI check)
-        bcx = cx
-        bcy = int(bbox[1] + bbox[3])
-        
-        # Check ROI intersection using bottom-center
-        in_roi = is_point_in_polygon(bcx, bcy, roi_pixels)
+        # Check ROI intersection using centroid (centroide)
+        in_roi = is_point_in_polygon(cx, cy, roi_pixels)
         
         if cls == "person":
-            persons.append({
-                "track_id": det.get("track_id", 0),
-                "center": (cx, cy),
-                "conf": det["conf"],
-                "in_roi": in_roi,
-                "bbox": bbox
-            })
+            if in_roi:
+                persons.append({
+                    "track_id": det.get("track_id", 0),
+                    "center": (cx, cy),
+                    "conf": det["conf"],
+                    "in_roi": in_roi,
+                    "bbox": bbox
+                })
         elif cls in ["handbag", "backpack", "bag", "suitcase", "briefcase", "cell phone", "snowboard", "skateboard", "umbrella", "elephant", "surfboard"]:
-            objects.append({
-                "center": (cx, cy),
-                "conf": det["conf"],
-                "in_roi": in_roi,
-                "class": cls,
-                "bbox": bbox
-            })
+            if in_roi:
+                objects.append({
+                    "center": (cx, cy),
+                    "conf": det["conf"],
+                    "in_roi": in_roi,
+                    "class": cls,
+                    "bbox": bbox
+                })
 
     # Association & Update State
     with tracked_lock:
@@ -856,6 +901,28 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
             print(f"[AI-INFO] Pessoa #{tid} saiu de cena por 10 frames. Finalizando rastreamento.")
             tracked_persons.pop(tid, None)
 
+        # Draw ROI polygon and centroids locally if frame is provided
+        if frame is not None:
+            debug_frame = frame.copy()
+            # Draw green ROI polygon boundaries
+            pts = np.array(roi_pixels, np.int32)
+            pts = pts.reshape((-1, 1, 2))
+            cv2.polylines(debug_frame, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
+            
+            # Draw red circle at person centroids and labels
+            for p in persons:
+                cx, cy = p["center"]
+                tid = p["track_id"]
+                cv2.circle(debug_frame, (cx, cy), 6, (0, 0, 255), -1)
+                cv2.putText(debug_frame, f"Pessoa #{tid}", (cx - 15, cy - 15),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+            
+            try:
+                cv2.imshow("AegisEye Debug ROI", debug_frame)
+                cv2.waitKey(1)
+            except Exception:
+                pass
+
 def ai_inference_loop(simulate=False):
     """Asynchronous background thread running YOLOv8 model inference silently on captured frames"""
     global frame_to_process, running
@@ -1094,6 +1161,7 @@ if __name__ == '__main__':
         
     # Load settings from database configuracoes table for active tenant_id
     load_db_config(TENANT_ID)
+    load_roi_config(CAMERA_ID)
         
     simulate_mode = args.simulate or not RTSP_URL
     
