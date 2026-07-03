@@ -47,8 +47,11 @@ ROI_POLYGON = [
     [0.02, 0.98]  
 ]
 
+ROI_ENABLED = True
+LAST_ROI_MTIME = 0.0
+
 def load_roi_config(camera_id=None):
-    global ROI_POLYGON
+    global ROI_POLYGON, ROI_ENABLED, LAST_ROI_MTIME
     config_path = "config_roi.json"
     
     # Default fallback polygon
@@ -62,7 +65,10 @@ def load_roi_config(camera_id=None):
     if not os.path.exists(config_path):
         initial_config = {
             "camera_rois": {
-                "default": default_poly
+                "default": {
+                    "enabled": True,
+                    "polygon": default_poly
+                }
             }
         }
         try:
@@ -73,26 +79,76 @@ def load_roi_config(camera_id=None):
             print(f"[CONFIG-ROI] Erro ao criar config_roi.json padrão: {e}")
             
     try:
+        LAST_ROI_MTIME = os.path.getmtime(config_path)
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
         rois = config.get("camera_rois", {})
         
+        target_key = "default"
         if camera_id and camera_id in rois:
-            ROI_POLYGON = rois[camera_id]
-            print(f"[CONFIG-ROI] Carregado polígono de ROI específico para câmera ID '{camera_id}'.")
-        elif "default" in rois:
-            ROI_POLYGON = rois["default"]
-            print("[CONFIG-ROI] Carregado polígono de ROI padrão ('default').")
+            target_key = camera_id
+        
+        if target_key in rois:
+            cam_config = rois[target_key]
+            if isinstance(cam_config, dict):
+                ROI_ENABLED = cam_config.get("enabled", True)
+                ROI_POLYGON = cam_config.get("polygon", [])
+            else:
+                ROI_ENABLED = True
+                ROI_POLYGON = cam_config
+            print(f"[CONFIG-ROI] Carregada ROI para '{target_key}' | Habilitado: {ROI_ENABLED}")
         elif rois:
             first_key = list(rois.keys())[0]
-            ROI_POLYGON = rois[first_key]
-            print(f"[CONFIG-ROI] Carregado polígono de ROI da chave '{first_key}'.")
+            cam_config = rois[first_key]
+            if isinstance(cam_config, dict):
+                ROI_ENABLED = cam_config.get("enabled", True)
+                ROI_POLYGON = cam_config.get("polygon", [])
+            else:
+                ROI_ENABLED = True
+                ROI_POLYGON = cam_config
+            print(f"[CONFIG-ROI] Carregada ROI da chave '{first_key}' | Habilitado: {ROI_ENABLED}")
         else:
+            ROI_ENABLED = True
             ROI_POLYGON = default_poly
             print("[CONFIG-ROI] Nenhuma ROI válida encontrada. Usando o polígono padrão.")
     except Exception as e:
+        ROI_ENABLED = True
         ROI_POLYGON = default_poly
         print(f"[CONFIG-ROI] Falha ao carregar config_roi.json: {e}. Usando o polígono padrão.")
+
+def check_and_reload_roi_config(camera_id=None):
+    global ROI_POLYGON, ROI_ENABLED, LAST_ROI_MTIME
+    config_path = "config_roi.json"
+    if not os.path.exists(config_path):
+        return
+    try:
+        mtime = os.path.getmtime(config_path)
+        if mtime != LAST_ROI_MTIME:
+            LAST_ROI_MTIME = mtime
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            rois = config.get("camera_rois", {})
+            
+            target_key = "default"
+            if camera_id and camera_id in rois:
+                target_key = camera_id
+            
+            if target_key in rois:
+                cam_config = rois[target_key]
+                if isinstance(cam_config, dict):
+                    ROI_ENABLED = cam_config.get("enabled", True)
+                    ROI_POLYGON = cam_config.get("polygon", [])
+                else:
+                    ROI_ENABLED = True
+                    ROI_POLYGON = cam_config
+                print(f"[CONFIG-ROI] Watchdog: ROI recarregada automaticamente | Habilitado: {ROI_ENABLED} | Pontos: {len(ROI_POLYGON)}")
+    except Exception as e:
+        print(f"[CONFIG-ROI] Erro ao recarregar config_roi.json pelo watchdog: {e}")
+
+def roi_watchdog_loop(camera_id):
+    while running:
+        check_and_reload_roi_config(camera_id)
+        time.sleep(2.0)
 
 # Load Haar Cascades for face detection (Looking at camera heuristic)
 face_cascade = None
@@ -518,8 +574,13 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
         # Check ROI intersection using centroid (centroide)
         in_roi = is_point_in_polygon((cx, cy), roi_pixels)
         
+        # Decide if the detection is accepted:
+        # If ROI is not enabled, we accept all detections.
+        # If ROI is enabled, we only accept detections inside the ROI polygon.
+        is_accepted = (not ROI_ENABLED) or in_roi
+        
         if cls == "person":
-            if in_roi:
+            if is_accepted:
                 persons.append({
                     "track_id": det.get("track_id", 0),
                     "center": (cx, cy),
@@ -528,10 +589,10 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     "bbox": bbox
                 })
             else:
-                track_id = det.get("track_id", 0)
-                print(f"[ROI] Pessoa #{track_id} ignorada: fora da zona de interesse.")
+                # Discarded completely silently: no console logs, no risk checks, no webhooks
+                pass
         elif cls in ["handbag", "backpack", "bag", "suitcase", "briefcase", "cell phone", "snowboard", "skateboard", "umbrella", "elephant", "surfboard"]:
-            if in_roi:
+            if is_accepted:
                 objects.append({
                     "center": (cx, cy),
                     "conf": det["conf"],
@@ -1192,9 +1253,11 @@ if __name__ == '__main__':
     
     # Start AI Inference Thread
     threading.Thread(target=ai_inference_loop, args=(simulate_mode,), daemon=True).start()
-    
     # Start Heartbeat Thread
     threading.Thread(target=heartbeat_loop, daemon=True).start()
+    
+    # Start ROI Config Watchdog Thread
+    threading.Thread(target=roi_watchdog_loop, args=(CAMERA_ID,), daemon=True).start()
     
     try:
         pipeline.run_pipeline()
