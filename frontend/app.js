@@ -32,8 +32,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getStreamHost(camId) {
         const host = window.location.hostname;
-        if (host === 'app.aegiseye.com.br' || host === '144.91.121.55' || host === 'localhost' || host === '127.0.0.1') {
+        if (host === 'app.aegiseye.com.br' || host === '144.91.121.55') {
             return `cam-${camId}.localhost`;
+        }
+        if (host === 'localhost' || host === '127.0.0.1') {
+            return '127.0.0.1';
         }
         return host;
     }
