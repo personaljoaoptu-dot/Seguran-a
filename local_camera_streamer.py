@@ -46,6 +46,29 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
                 self.wfile.write(f"Erro ao carregar UI: {e}".encode())
             return
 
+        if parsed_url.path == '/style.css':
+            try:
+                if hasattr(sys, '_MEIPASS'):
+                    base_dir = sys._MEIPASS
+                else:
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                css_path = os.path.join(base_dir, 'frontend', 'style.css')
+                if not os.path.exists(css_path):
+                    css_path = os.path.join(base_dir, 'style.css')
+                with open(css_path, 'rb') as f:
+                    content = f.read()
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/css; charset=utf-8')
+                self.send_header('Content-Length', str(len(content)))
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(content)
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(f"Erro ao carregar CSS: {e}".encode())
+            return
+
         if parsed_url.path not in ['/stream', '/stream_ai']:
             self.send_response(404)
             self.end_headers()

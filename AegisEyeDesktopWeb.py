@@ -121,7 +121,7 @@ class AegisEyeApi:
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT created_at, severity, title, camera_name, confidence, id 
+                SELECT created_at, severity, title, camera_name, confidence, id, video_url, details 
                 FROM public.alertas 
                 WHERE tenant_id = %s 
                 ORDER BY created_at DESC 
@@ -141,8 +141,10 @@ class AegisEyeApi:
                     "severity": severity,
                     "label": label,
                     "title": row[2],
-                    "camera": row[3],
-                    "conf": f"{int(row[4])}%" if row[4] is not None else "90%"
+                    "camera": row[3] or "Câmera Geral",
+                    "confidence": int(row[4]) if row[4] is not None else 90,
+                    "video_url": row[6] if len(row) > 6 else None,
+                    "details": row[7] if len(row) > 7 else "Alerta de segurança em tempo real."
                 })
                 
             cursor.close()
