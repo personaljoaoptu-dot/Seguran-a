@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS public.alertas (
     details TEXT,
     confidence FLOAT,
     trigger_type VARCHAR(100), -- CONCEALMENT_ROI, LINGER_ROI
+    track_id INT,
+    video_url VARCHAR(512),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

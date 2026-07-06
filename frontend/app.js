@@ -423,6 +423,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const labelSeverity = alert.severity === 'critical' ? 'Crítico' : (alert.severity === 'warning' ? 'Atenção' : 'Médio');
             const confClass = alert.severity === 'critical' ? 'text-rose' : (alert.severity === 'warning' ? 'text-amber' : 'text-cyan');
 
+            const videoBtn = alert.video_url ? `
+                <button class="btn-view-evidence action-btn" data-alert-id="${alert.id}" title="Ver Vídeo da Evidência" style="padding: 6px 12px; background: var(--indigo-600); font-size: 11px; border-radius: var(--radius-sm); color: #fff; border: none; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 12px; height: 12px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Ver Vídeo
+                </button>
+            ` : '';
+
             card.innerHTML = `
                 <div class="alert-card-header">
                     <span class="severity-badge ${alert.severity}">${labelSeverity}</span>
@@ -436,11 +443,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span>Confiança: <strong class="${confClass}">${alert.confidence}%</strong></span>
                     </div>
                 </div>
-                <div class="alert-card-actions">
+                <div class="alert-card-actions" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
                     <div class="alert-feedback-btns">
                         <button class="btn-feedback correct" title="Confirmar Alerta" data-alert-id="${alert.id}">✓</button>
                         <button class="btn-feedback incorrect" title="Falso Positivo" data-alert-id="${alert.id}">✗</button>
                     </div>
+                    ${videoBtn}
                 </div>
             `;
             alertsQueueContainer.appendChild(card);
@@ -458,6 +466,83 @@ document.addEventListener('DOMContentLoaded', () => {
                 const id = parseInt(e.target.getAttribute('data-alert-id'));
                 handleAlertFeedback(id, false);
             });
+        });
+
+        document.querySelectorAll('.btn-view-evidence').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const button = e.currentTarget;
+                const id = parseInt(button.getAttribute('data-alert-id'));
+                openEvidenceModal(id);
+            });
+        });
+    }
+
+    // --- VIDEO EVIDENCE MODAL ENGINE ---
+    const modalEvidence = document.getElementById('modal-alert-evidence');
+    const modalVideo = document.getElementById('modal-evidence-video');
+    const modalTitle = document.getElementById('modal-alert-title');
+    const modalCamera = document.getElementById('modal-alert-camera');
+    const modalDetails = document.getElementById('modal-alert-details');
+    const modalConfidence = document.getElementById('modal-alert-confidence');
+    const modalBtnConfirm = document.getElementById('modal-btn-confirm');
+    const modalBtnDiscard = document.getElementById('modal-btn-discard');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+
+    function openEvidenceModal(id) {
+        const alert = alertsList.find(a => a.id === id);
+        if (!alert || !alert.video_url) return;
+
+        currentModalAlert = alert;
+        if (modalTitle) modalTitle.innerText = `Evidência: ${alert.title}`;
+        if (modalCamera) modalCamera.innerText = alert.camera;
+        if (modalDetails) modalDetails.innerText = alert.details;
+        if (modalConfidence) modalConfidence.innerText = `${alert.confidence}%`;
+        
+        if (modalVideo) {
+            modalVideo.src = alert.video_url;
+            modalVideo.load();
+            modalVideo.play().catch(err => console.log("Video auto-play failed: ", err));
+        }
+
+        if (modalEvidence) modalEvidence.classList.add('active');
+    }
+
+    function closeEvidenceModal() {
+        if (modalVideo) {
+            modalVideo.pause();
+            modalVideo.src = '';
+        }
+        if (modalEvidence) modalEvidence.classList.remove('active');
+        currentModalAlert = null;
+    }
+
+    if (btnCloseModal) {
+        btnCloseModal.addEventListener('click', closeEvidenceModal);
+    }
+    
+    if (modalEvidence) {
+        modalEvidence.addEventListener('click', (e) => {
+            if (e.target === modalEvidence) {
+                closeEvidenceModal();
+            }
+        });
+    }
+
+    if (modalBtnConfirm) {
+        modalBtnConfirm.addEventListener('click', () => {
+            if (currentModalAlert) {
+                handleAlertFeedback(currentModalAlert.id, true);
+                closeEvidenceModal();
+            }
+        });
+    }
+
+    if (modalBtnDiscard) {
+        modalBtnDiscard.addEventListener('click', () => {
+            if (currentModalAlert) {
+                handleAlertFeedback(currentModalAlert.id, false);
+                closeEvidenceModal();
+            }
         });
     }
 
@@ -1704,7 +1789,8 @@ document.addEventListener('DOMContentLoaded', () => {
                                 confidence: dbAlert.confidence,
                                 details: dbAlert.details || "Alerta detectado por processador IA local.",
                                 trigger: dbAlert.trigger_type || "Detecção automática.",
-                                code: dbAlert.code || "DB_ALERT"
+                                code: dbAlert.code || "DB_ALERT",
+                                video_url: dbAlert.video_url || null
                             });
                             updated = true;
                         }

@@ -17,6 +17,9 @@ import urllib.request
 import urllib.parse
 import threading
 import math
+import collections
+import subprocess
+import shutil
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 import cv2
@@ -196,7 +199,199 @@ def is_point_in_polygon(point, polygon):
         p1x, p1y = p2x, p2y
     return inside
 
-def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEALMENT_ROI", confidence=90.0, tenant_id=None, camera_id=None, camera_name=None, user_id=None, track_id=None):
+circular_frame_buffer = collections.deque()
+buffer_lock = threading.Lock()
+
+active_recorders = []
+recorders_lock = threading.Lock()
+last_cleanup_time = 0.0
+
+def cleanup_old_evidence_clips():
+    global last_cleanup_time
+    now = time.time()
+    if now - last_cleanup_time < 3600.0: # Run every 1 hour
+        return
+    last_cleanup_time = now
+    
+    evidence_dir = "evidencias"
+    if not os.path.exists(evidence_dir):
+        return
+        
+    print("[EVIDENCE-CLEANUP] Iniciando limpeza de evidências antigas (limite: 7 dias)...")
+    try:
+        count = 0
+        limit_sec = 7 * 24 * 3600 # 7 days
+        for filename in os.listdir(evidence_dir):
+            filepath = os.path.join(evidence_dir, filename)
+            if os.path.isfile(filepath):
+                mtime = os.path.getmtime(filepath)
+                if now - mtime > limit_sec:
+                    os.remove(filepath)
+                    count += 1
+        if count > 0:
+            print(f"[EVIDENCE-CLEANUP] Removidos {count} clipes de evidência antigos expirados.")
+    except Exception as e:
+        print(f"[EVIDENCE-CLEANUP] Erro durante a limpeza: {e}")
+
+def write_video_ffmpeg(frames, filepath, fps=15):
+    if not frames:
+        return
+    h, w, _ = frames[0].shape
+    
+    # Launch FFmpeg subprocess to encode H.264 MP4 directly from pipe rawvideo
+    cmd = [
+        'ffmpeg',
+        '-y', # Overwrite file
+        '-f', 'rawvideo',
+        '-vcodec', 'rawvideo',
+        '-s', f'{w}x{h}',
+        '-pix_fmt', 'bgr24',
+        '-r', str(fps),
+        '-i', '-', # Pipe input
+        '-an', # No audio
+        '-vcodec', 'libx264',
+        '-pix_fmt', 'yuv420p',
+        '-preset', 'veryfast',
+        '-crf', '28', # Small file size
+        filepath
+    ]
+    
+    try:
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for f in frames:
+            proc.stdin.write(f.tobytes())
+        proc.stdin.close()
+        proc.wait()
+        print(f"[EVIDENCE] Clipe de evidência salvo em {filepath} ({len(frames)} frames)")
+    except Exception as e:
+        print(f"[EVIDENCE] Erro ao gravar vídeo com FFmpeg: {e}")
+
+def upload_file_tmpfiles(file_path):
+    """Uploads local file to tmpfiles.org via anonymous POST and returns the direct download URL"""
+    import urllib.request
+    import uuid
+    
+    boundary = f"----WebKitFormBoundary{uuid.uuid4().hex}"
+    filename = os.path.basename(file_path)
+    
+    try:
+        with open(file_path, "rb") as f:
+            file_content = f.read()
+            
+        part_header = (
+            f"--{boundary}\r\n"
+            f"Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n"
+            f"Content-Type: video/mp4\r\n\r\n"
+        ).encode('utf-8')
+        
+        part_footer = f"\r\n--{boundary}--\r\n".encode('utf-8')
+        body = part_header + file_content + part_footer
+        
+        req = urllib.request.Request(
+            "https://tmpfiles.org/api/v1/upload",
+            data=body,
+            headers={
+                "Content-Type": f"multipart/form-data; boundary={boundary}"
+            }
+        )
+        
+        with urllib.request.urlopen(req, timeout=30) as res:
+            response_data = res.read().decode('utf-8')
+            
+        response_json = json.loads(response_data)
+        if response_json.get("status") == "success":
+            raw_url = response_json["data"]["url"]
+            dl_url = raw_url.replace("tmpfiles.org/", "tmpfiles.org/dl/")
+            print(f"[EVIDENCE] Upload concluído com sucesso: {dl_url}")
+            return dl_url
+        else:
+            print(f"[EVIDENCE] Erro no upload (API tmpfiles): {response_json}")
+    except Exception as e:
+        print(f"[EVIDENCE] Falha ao fazer upload da evidência: {e}")
+        
+    return f"http://127.0.0.1:8082/evidencias/{filename}"
+
+def finalize_evidence_clip(frames, track_id, trigger_type, event_time, n8n_context):
+    evidence_dir = "evidencias"
+    os.makedirs(evidence_dir, exist_ok=True)
+    cleanup_old_evidence_clips()
+    
+    filename = f"evidence_{track_id}_{int(event_time)}.mp4"
+    filepath = os.path.join(evidence_dir, filename)
+    
+    # Save optimized H.264 video
+    write_video_ffmpeg(frames, filepath, fps=15)
+    
+    # Upload and obtain cloud URL
+    video_url = upload_file_tmpfiles(filepath)
+    
+    # Send the final webhook with the uploaded video URL
+    send_webhook_alert(
+        title=n8n_context["title"],
+        details=n8n_context["details"],
+        severity=n8n_context["severity"],
+        trigger_type=trigger_type,
+        confidence=n8n_context["confidence"],
+        tenant_id=n8n_context["tenant_id"],
+        camera_id=n8n_context["camera_id"],
+        camera_name=n8n_context["camera_name"],
+        user_id=n8n_context["user_id"],
+        track_id=track_id,
+        video_url=video_url
+    )
+
+def trigger_evidence_and_alert(title, details, severity, trigger_type, confidence, tenant_id, camera_id, camera_name, user_id, track_id):
+    # Take snapshot of the last 10 seconds of frames from circular buffer
+    with buffer_lock:
+        pre_frames = [f[1] for f in circular_frame_buffer]
+        
+    print(f"[EVIDENCE] Iniciada gravação de clipe de evidência para a Pessoa #{track_id} (10s antes + 5s depois)...")
+    
+    with recorders_lock:
+        active_recorders.append({
+            "track_id": track_id,
+            "trigger_type": trigger_type,
+            "event_time": time.time(),
+            "frames": list(pre_frames),
+            "n8n_context": {
+                "title": title,
+                "details": details,
+                "severity": severity,
+                "confidence": confidence,
+                "tenant_id": tenant_id,
+                "camera_id": camera_id,
+                "camera_name": camera_name,
+                "user_id": user_id
+            }
+        })
+
+def add_frame_to_buffers(resized_frame):
+    global circular_frame_buffer
+    now = time.time()
+    
+    # 1. Update circular buffer (keep last 10 seconds)
+    with buffer_lock:
+        circular_frame_buffer.append((now, resized_frame))
+        while circular_frame_buffer and (now - circular_frame_buffer[0][0] > 10.0):
+            circular_frame_buffer.popleft()
+            
+    # 2. Feed active recorders (post-event frames for next 5 seconds)
+    with recorders_lock:
+        still_active = []
+        for rec in active_recorders:
+            rec["frames"].append(resized_frame)
+            if now - rec["event_time"] >= 5.0:
+                # Trigger evidence video encoding & upload
+                threading.Thread(
+                    target=finalize_evidence_clip,
+                    args=(rec["frames"], rec["track_id"], rec["trigger_type"], rec["event_time"], rec["n8n_context"]),
+                    daemon=True
+                ).start()
+            else:
+                still_active.append(rec)
+        active_recorders[:] = still_active
+
+def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEALMENT_ROI", confidence=90.0, tenant_id=None, camera_id=None, camera_name=None, user_id=None, track_id=None, video_url=None):
     """Sends the alert metadata payload to n8n backend webhook asynchronously"""
     payload = {
         "tenant_id": tenant_id or TENANT_ID,
@@ -208,7 +403,9 @@ def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEA
         "details": details,
         "confidence": float(confidence),
         "trigger_type": trigger_type,
-        "track_id": track_id
+        "track_id": track_id,
+        "url_video": video_url, # cloud url of evidence
+        "evento": trigger_type   # furto_detectado/CONCEALMENT_ROI
     }
     
     def post_req():
@@ -268,6 +465,7 @@ def heartbeat_loop():
         "status": "online"
     }
     while running:
+        cleanup_old_evidence_clips()
         try:
             req = urllib.request.Request(
                 url,
@@ -410,6 +608,33 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
         global latest_clean_frame
         parsed_url = urllib.parse.urlparse(self.path)
         
+        # Serve local evidence video files static fallback
+        if parsed_url.path.startswith('/evidencias/'):
+            filename = os.path.basename(parsed_url.path)
+            filepath = os.path.join("evidencias", filename)
+            if os.path.exists(filepath):
+                try:
+                    with open(filepath, 'rb') as f:
+                        content = f.read()
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'video/mp4')
+                    self.send_header('Content-Length', str(len(content)))
+                    self.send_header('Access-Control-Allow-Origin', '*')
+                    self.send_header('Access-Control-Allow-Private-Network', 'true')
+                    self.end_headers()
+                    self.wfile.write(content)
+                    return
+                except Exception as e:
+                    self.send_response(500)
+                    self.end_headers()
+                    self.wfile.write(f"Erro ao ler evidência: {e}".encode())
+                    return
+            else:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b"Arquivo de evidencia nao encontrado.")
+                return
+
         # Serve Desktop UI
         if parsed_url.path == '/':
             try:
@@ -882,7 +1107,7 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     if cooldown_remaining <= 0.0:
                         if avg_conf >= 0.85:
                             p_state["last_alert_time"] = current_time
-                            send_webhook_alert(
+                            trigger_evidence_and_alert(
                                 title=title,
                                 details=details,
                                 severity="critical",
@@ -926,7 +1151,7 @@ def process_detections_and_infractions(detections, W, H, frame=None, simulate=Fa
                     if cooldown_remaining <= 0.0:
                         if avg_conf >= 0.85:
                             p_state["last_alert_time"] = current_time
-                            send_webhook_alert(
+                            trigger_evidence_and_alert(
                                 title=title,
                                 details=details,
                                 severity="warning",
@@ -1168,6 +1393,8 @@ class VideoCapturePipeline:
                             # Submit to AI thread if thread is free
                             if frame_to_process is None:
                                 frame_to_process = frame.copy()
+                        
+                        add_frame_to_buffers(resized_clean)
                                 
                         if frame_id % 150 == 0:
                             print(f"[PROCESS] Frame {frame_id} processado (Simulação).")
@@ -1198,6 +1425,8 @@ class VideoCapturePipeline:
                             # Submit to AI background thread if it is ready
                             if frame_to_process is None:
                                 frame_to_process = img.copy()
+                                
+                        add_frame_to_buffers(resized_clean)
                                 
                         if frame_id % 150 == 0:
                             print(f"[PROCESS] Frame {frame_id} processado. Feed limpo a 30 FPS ativo.")
@@ -1236,6 +1465,7 @@ if __name__ == '__main__':
     # Load settings from database configuracoes table for active tenant_id
     load_db_config(TENANT_ID)
     load_roi_config(CAMERA_ID)
+    cleanup_old_evidence_clips()
         
     simulate_mode = args.simulate or not RTSP_URL
     
