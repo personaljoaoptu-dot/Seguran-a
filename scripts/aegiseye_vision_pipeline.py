@@ -238,7 +238,7 @@ def write_video_ffmpeg(frames, filepath, fps=15):
         return
     h, w, _ = frames[0].shape
     
-    # Launch FFmpeg subprocess to encode H.264 MP4 directly from pipe rawvideo
+    # Try using FFmpeg first
     cmd = [
         'ffmpeg',
         '-y', # Overwrite file
@@ -262,9 +262,25 @@ def write_video_ffmpeg(frames, filepath, fps=15):
             proc.stdin.write(f.tobytes())
         proc.stdin.close()
         proc.wait()
-        print(f"[EVIDENCE] Clipe de evidência salvo em {filepath} ({len(frames)} frames)")
+        if proc.returncode == 0 and os.path.exists(filepath):
+            print(f"[EVIDENCE] Clipe de evidência salvo via FFmpeg em {filepath} ({len(frames)} frames)")
+            return
     except Exception as e:
-        print(f"[EVIDENCE] Erro ao gravar vídeo com FFmpeg: {e}")
+        print(f"[EVIDENCE] FFmpeg falhou ou não está instalado: {e}. Tentando OpenCV VideoWriter fallback...")
+
+    # Fallback: encode via OpenCV VideoWriter
+    try:
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v') # Universal fallback for MP4 container
+        out = cv2.VideoWriter(filepath, fourcc, fps, (w, h))
+        for f in frames:
+            out.write(f)
+        out.release()
+        if os.path.exists(filepath):
+            print(f"[EVIDENCE] Clipe de evidência salvo via OpenCV em {filepath} ({len(frames)} frames)")
+        else:
+            print(f"[EVIDENCE] Falha ao criar arquivo de vídeo com OpenCV em {filepath}")
+    except Exception as ex:
+        print(f"[EVIDENCE] Erro ao gravar vídeo com OpenCV fallback: {ex}")
 
 def upload_file_tmpfiles(file_path):
     """Uploads local file to tmpfiles.org via anonymous POST and returns the direct download URL"""
@@ -291,7 +307,8 @@ def upload_file_tmpfiles(file_path):
             "https://tmpfiles.org/api/v1/upload",
             data=body,
             headers={
-                "Content-Type": f"multipart/form-data; boundary={boundary}"
+                "Content-Type": f"multipart/form-data; boundary={boundary}",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
         )
         
