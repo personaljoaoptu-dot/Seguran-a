@@ -655,8 +655,15 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
         # Serve Desktop UI
         if parsed_url.path == '/':
             try:
-                base_dir = os.path.dirname(os.path.abspath(__file__))
+                if hasattr(sys, '_MEIPASS'):
+                    base_dir = sys._MEIPASS
+                else:
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                
                 ui_path = os.path.join(base_dir, 'desktop_ui.html')
+                if not os.path.exists(ui_path):
+                    ui_path = os.path.join(base_dir, '..', 'desktop_ui.html')
+                    
                 with open(ui_path, 'rb') as f:
                     content = f.read()
                 self.send_response(200)
