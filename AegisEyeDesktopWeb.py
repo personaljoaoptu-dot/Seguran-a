@@ -190,9 +190,9 @@ if __name__ == '__main__':
         title='AegisEye AI - Loss Prevention Monitor Extension', 
         url='http://localhost:8082/', 
         js_api=api,
-        width=900, 
-        height=550, 
-        resizable=False
+        width=1280, 
+        height=800, 
+        resizable=True
     )
     
     # Run application loop with debug mode enabled (Press F12 to inspect)
