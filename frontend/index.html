@@ -119,6 +119,10 @@
                                     <select id="camera-select-dropdown" class="sim-dropdown" style="min-width: 220px; font-weight: 600; padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--slate-700); background-color: var(--slate-950); color: var(--slate-200);">
                                         <!-- Populado dinamicamente -->
                                     </select>
+                                    <span id="camera-status-indicator" style="font-size: 11px; font-weight: 700; background: var(--slate-900); padding: 4px 10px; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 6px; margin-right: 8px;">
+                                        <span id="camera-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #f59e0b;"></span>
+                                        <span id="camera-status-text" style="color: var(--slate-300);">OFFLINE</span>
+                                    </span>
                                     <span class="camera-info-badge" id="active-cam-title">Corredor 1 (Mercearia)</span>
                                 </div>
                                 <div class="video-controls">
@@ -192,9 +196,21 @@
                     
                     <!-- Alert Queue Column -->
                     <div class="alert-column">
-                        <div class="alerts-header">
+                        <div class="alerts-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <h2>Fila de Alertas Operacionais</h2>
-                            <span class="alert-count-badge" id="active-alert-badge">3 ativos</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button id="btn-sound-toggle" onclick="toggleSound()" title="Silenciar Notificações" style="background: var(--slate-900); border: 1px solid var(--slate-800); color: var(--slate-300); padding: 4px 8px; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; font-size: 14px;">
+                                    🔊
+                                </button>
+                                <span class="alert-count-badge" id="active-alert-badge">3 ativos</span>
+                            </div>
+                        </div>
+
+                        <!-- Quick Filters -->
+                        <div class="alert-filters" style="display: flex; gap: 6px; margin: 8px 0 12px 0;">
+                            <button class="filter-btn active" id="filter-btn-all" onclick="setAlertFilter('all')" style="background: var(--color-primary); color: #000; border: none; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 11px; transition: all 0.2s;">Todos</button>
+                            <button class="filter-btn" id="filter-btn-critical" onclick="setAlertFilter('critical')" style="background: var(--slate-950); color: var(--slate-400); border: 1px solid var(--slate-800); padding: 4px 10px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 11px; transition: all 0.2s;">Críticos</button>
+                            <button class="filter-btn" id="filter-btn-warning" onclick="setAlertFilter('warning')" style="background: var(--slate-950); color: var(--slate-400); border: 1px solid var(--slate-800); padding: 4px 10px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 11px; transition: all 0.2s;">Atenção</button>
                         </div>
                         
                         <div class="alerts-queue" id="alerts-queue-container">
@@ -886,6 +902,6 @@
     </div>
 
     <!-- Javascript Logic -->
-    <script src="app.js?v=12"></script>
+    <script src="app.js?v=13"></script>
 </body>
 </html>
