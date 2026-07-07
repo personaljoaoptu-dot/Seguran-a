@@ -130,11 +130,11 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
                                 print(f"[STREAM] Câmera ocupada ou offline (porta {port} bloqueada): {socket_err}. Garanta que o VLC esteja fechado! Retentando em 3s...")
                                 time.sleep(3)
                                 continue
-                                
+                        
                         try:
-                            # Open container with forced UDP transport and timeout (required for Yoosee cameras)
+                            # Open container with forced TCP transport and timeout
                             container = av.open(rtsp_url, options={
-                                'rtsp_transport': 'udp',
+                                'rtsp_transport': 'tcp',
                                 'stimeout': '5000000' # 5 seconds
                             })
                             stream = container.streams.video[0]

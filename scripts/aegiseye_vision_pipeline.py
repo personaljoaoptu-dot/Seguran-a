@@ -552,7 +552,7 @@ def stream_capture_worker(rtsp_url):
                 # Open container and decode frames using PyAV
                 try:
                     container = av.open(rtsp_url, options={
-                        'rtsp_transport': 'udp',
+                        'rtsp_transport': 'tcp',
                         'stimeout': '5000000',  # 5 seconds connection timeout
                         'timeout': '5000000'
                     })
@@ -1452,7 +1452,7 @@ class VideoCapturePipeline:
                     # Real PyAV video reader loop
                     print(f"[INPUT] Conectando ao fluxo via PyAV: {self.rtsp_url}")
                     container = av.open(self.rtsp_url, options={
-                        'rtsp_transport': 'udp',
+                        'rtsp_transport': 'tcp',
                         'stimeout': '10000000',
                         'timeout': '10000000'
                     })
