@@ -1346,33 +1346,8 @@ def ai_inference_loop(simulate=False):
             except Exception as e:
                 print(f"[ENGINE] Erro na inferência YOLO: {e}")
         elif simulate:
-            if frame_count > 10:
-                # Person 312: Inside ROI
-                detections.append({
-                    "track_id": 312,
-                    "bbox": [800, 400, 200, 450],
-                    "class": "person",
-                    "conf": 0.94
-                })
-                # Person 313: Outside ROI (centroid: 35, 50)
-                detections.append({
-                    "track_id": 313,
-                    "bbox": [10, 10, 50, 80],
-                    "class": "person",
-                    "conf": 0.91
-                })
-                detections.append({
-                    "bbox": [850, 600, 80, 80],
-                    "class": "backpack",
-                    "conf": 0.88
-                })
-                # Simulate cell phone in hand (near torso) from frame 12 to 180, then disappear
-                if 12 <= frame_count <= 180:
-                    detections.append({
-                        "bbox": [870, 550, 30, 50],
-                        "class": "cell phone",
-                        "conf": 0.85
-                    })
+            # Simulated detections disabled for production client delivery
+            pass
 
         # Process detections and infractions
         process_detections_and_infractions(
