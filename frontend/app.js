@@ -26,9 +26,85 @@ document.addEventListener('DOMContentLoaded', () => {
     let isEdgeOnline = true; // Heartbeat edge connectivity status
     let liveAnimId = null;
     let liveFrame = 0;
+    let soundEnabled = true;
+    let activeAlertFilter = 'all';
     
     // Map of camera stream images
     const cameraStreams = {};
+
+    // Sound Toggle
+    function toggleSound() {
+        soundEnabled = !soundEnabled;
+        const btn = document.getElementById('btn-sound-toggle');
+        if (btn) {
+            btn.innerText = soundEnabled ? '🔊' : '🔇';
+            btn.title = soundEnabled ? 'Silenciar Notificações' : 'Ativar Notificações';
+        }
+        addLog(soundEnabled ? 'Notificações sonoras ativadas.' : 'Notificações sonoras silenciadas.');
+    }
+    window.toggleSound = toggleSound;
+
+    // Web Audio API synth notification sound
+    function playNotificationSound() {
+        if (!soundEnabled) return;
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            
+            // Tone 1: C5 (523.25 Hz)
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(523.25, ctx.currentTime);
+            gain1.gain.setValueAtTime(0.12, ctx.currentTime);
+            gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+            osc1.connect(gain1);
+            gain1.connect(ctx.destination);
+            
+            // Tone 2: G5 (783.99 Hz)
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(783.99, ctx.currentTime + 0.08);
+            gain2.gain.setValueAtTime(0.0, ctx.currentTime);
+            gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.08);
+            gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+            osc2.connect(gain2);
+            gain2.connect(ctx.destination);
+            
+            osc1.start(ctx.currentTime);
+            osc1.stop(ctx.currentTime + 0.25);
+            osc2.start(ctx.currentTime + 0.08);
+            osc2.stop(ctx.currentTime + 0.35);
+        } catch (e) {
+            console.error("Audio Notification error:", e);
+        }
+    }
+
+    // Set Alert Filter
+    function setAlertFilter(filterValue) {
+        activeAlertFilter = filterValue;
+        
+        // Update button styles
+        document.querySelectorAll('.alert-filters .filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+            btn.style.background = 'var(--slate-950)';
+            btn.style.color = 'var(--slate-400)';
+            btn.style.border = '1px solid var(--slate-800)';
+        });
+        
+        const activeBtn = document.getElementById(`filter-btn-${filterValue}`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+            activeBtn.style.background = 'var(--color-primary)';
+            activeBtn.style.color = '#000';
+            activeBtn.style.border = 'none';
+        }
+        
+        updateAlertsQueueHTML();
+    }
+    window.setAlertFilter = setAlertFilter;
 
     function getStreamHost(camId) {
         const host = window.location.hostname;
@@ -408,17 +484,22 @@ document.addEventListener('DOMContentLoaded', () => {
         alertsQueueContainer.innerHTML = '';
         activeAlertBadge.innerText = `${alertsList.length} ativos`;
         
-        if (alertsList.length === 0) {
+        let filteredAlerts = alertsList;
+        if (activeAlertFilter !== 'all') {
+            filteredAlerts = alertsList.filter(a => a.severity === activeAlertFilter);
+        }
+
+        if (filteredAlerts.length === 0) {
             alertsQueueContainer.innerHTML = `
                 <div class="empty-alerts-notice" style="text-align: center; padding: 40px 20px; color: var(--slate-600); border: 1px dashed var(--slate-800); border-radius: var(--radius-md);">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 32px; height: 32px; margin-bottom: 8px; opacity: 0.5;"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
-                    <p>Nenhum alerta pendente</p>
+                    <p>Nenhum alerta ${activeAlertFilter !== 'all' ? (activeAlertFilter === 'critical' ? 'crítico ' : 'de atenção ') : ''}pendente</p>
                 </div>
             `;
             return;
         }
 
-        alertsList.forEach(alert => {
+        filteredAlerts.forEach(alert => {
             const card = document.createElement('div');
             card.className = `alert-card ${alert.severity} ${alert.id === 1 ? 'anim-pulse-card' : ''}`;
             card.setAttribute('data-alert-id', alert.id);
@@ -613,6 +694,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const camData = cameraList.find(c => c.id === camId) || cameraList[0];
             activeCamTitle.innerText = camData.name;
+            updateCameraStatusBadge(camId);
             updateActiveStreams();
             rebuildCameraSelectorsHTML();
             
@@ -1540,19 +1622,22 @@ document.addEventListener('DOMContentLoaded', () => {
             
             for (let ch = startCh; ch <= endCh; ch++) {
                 let rtspUrl = '';
+                const encodedUser = encodeURIComponent(user);
+                const encodedPass = encodeURIComponent(pass);
+                
                 if (brand === 'intelbras') {
-                    rtspUrl = `rtsp://${user}:${pass}@${ip}:${port}/cam/realmonitor?channel=${ch}&subtype=0`;
+                    rtspUrl = `rtsp://${encodedUser}:${encodedPass}@${ip}:${port}/cam/realmonitor?channel=${ch}&subtype=0`;
                 } else if (brand === 'hikvision') {
-                    rtspUrl = `rtsp://${user}:${pass}@${ip}:${port}/Streaming/Channels/${ch}01`;
+                    rtspUrl = `rtsp://${encodedUser}:${encodedPass}@${ip}:${port}/Streaming/Channels/${ch}01`;
                 } else if (brand === 'hikvision_av') {
-                    rtspUrl = `rtsp://${user}:${pass}@${ip}:${port}/h264/ch${ch}/main/av_stream`;
+                    rtspUrl = `rtsp://${encodedUser}:${encodedPass}@${ip}:${port}/h264/ch${ch}/main/av_stream`;
                 } else if (brand === 'custom') {
                     rtspUrl = customPattern
                         .replace(/{channel}/g, ch)
                         .replace(/{ip}/g, ip)
                         .replace(/{port}/g, port)
-                        .replace(/{user}/g, user)
-                        .replace(/{pass}/g, pass);
+                        .replace(/{user}/g, encodedUser)
+                        .replace(/{pass}/g, encodedPass);
                 }
                 
                 const camName = `Canal ${ch} - DVR (${brand.toUpperCase()})`;
@@ -1699,6 +1784,25 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function updateCameraStatusBadge(camId) {
+        const camData = cameraList.find(c => c.id === camId) || cameraList[0];
+        const statusIndicator = document.getElementById('camera-status-indicator');
+        const statusDot = document.getElementById('camera-status-dot');
+        const statusText = document.getElementById('camera-status-text');
+        
+        if (!camData) {
+            if (statusIndicator) statusIndicator.style.display = 'none';
+            return;
+        }
+        
+        if (statusIndicator && statusDot && statusText) {
+            statusIndicator.style.display = 'flex';
+            const isOnline = camData.status === 'online';
+            statusDot.style.backgroundColor = isOnline ? '#10b981' : '#f59e0b';
+            statusText.innerText = isOnline ? 'ONLINE' : 'OFFLINE (SIMULAÇÃO)';
+        }
+    }
+
     function rebuildCameraSelectorsHTML() {
         const dropdown = document.getElementById('camera-select-dropdown');
         if (!dropdown) return;
@@ -1714,6 +1818,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             dropdown.appendChild(opt);
         });
+        
+        updateCameraStatusBadge(activeCameraId);
         
         if (viewMode === 'grid') {
             rebuildVideoDisplayGridHTML();
@@ -1796,6 +1902,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 video_url: dbAlert.video_url || null
                             });
                             updated = true;
+                            
+                            // Play audio notification chime for new critical/warning alerts
+                            if (dbAlert.severity === 'critical' || dbAlert.severity === 'warning') {
+                                playNotificationSound();
+                            }
                         }
                     });
                     if (updated || (alertsList.length > 0 && statsAlertsCount === 0)) {
