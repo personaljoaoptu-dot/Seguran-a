@@ -439,7 +439,41 @@ def send_webhook_alert(title, details, severity="critical", trigger_type="CONCEA
                 print(f"[API] Alerta enviado com sucesso! Resposta: {res_data}")
                 print(f"[WEBHOOK DISPATCHED] ID: {track_id} | Confidence: {confidence} | Event: {trigger_type}")
         except Exception as ex:
-            print(f"[API] Erro ao enviar alerta para o n8n: {ex}")
+            print(f"[API] Erro ao enviar alerta para o n8n: {ex}. Iniciando fallback de inserção direta no Banco de Dados...")
+            try:
+                import pg8000
+                import uuid
+                conn = pg8000.connect(
+                    host="144.91.121.55",
+                    port=5432,
+                    user="postgres",
+                    password="KtnYcxnVOGjD4thzS6tlBcW9",
+                    database="aegisyear",
+                    timeout=5
+                )
+                cursor = conn.cursor()
+                t_id = tenant_id or TENANT_ID
+                # Ensure t_id is valid UUID string
+                c_id = camera_id or CAMERA_ID
+                if not c_id or c_id == "":
+                    c_id = None
+                
+                alert_uuid = str(uuid.uuid4())
+                cursor.execute("""
+                    INSERT INTO public.alertas (
+                        id, tenant_id, camera_id, camera_name, severity, title, details, confidence, trigger_type, track_id, video_url, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                """, (
+                    alert_uuid, str(t_id), str(c_id) if c_id else None, str(camera_name or CAMERA_NAME), 
+                    str(severity), str(title), str(details), float(confidence), str(trigger_type), 
+                    int(track_id) if track_id is not None else None, str(video_url) if video_url else None
+                ))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                print(f"[DB FALLBACK] Alerta inserido diretamente via conexão direta do Banco de Dados com sucesso! ID: {alert_uuid}")
+            except Exception as dbe:
+                print(f"[DB FALLBACK ERROR] Falha grave ao tentar inserir alerta diretamente no banco de dados: {dbe}")
 
     threading.Thread(target=post_req, daemon=True).start()
 
@@ -1493,6 +1527,7 @@ if __name__ == '__main__':
     cleanup_old_evidence_clips()
         
     simulate_mode = args.simulate or not RTSP_URL
+    skip_yolo = args.simulate
     
     # Initialize the capture pipeline
     pipeline = VideoCapturePipeline(RTSP_URL, simulate_mode)
@@ -1507,7 +1542,7 @@ if __name__ == '__main__':
     threading.Thread(target=start_http, daemon=True).start()
     
     # Start AI Inference Thread
-    threading.Thread(target=ai_inference_loop, args=(simulate_mode,), daemon=True).start()
+    threading.Thread(target=ai_inference_loop, args=(skip_yolo,), daemon=True).start()
     # Start Heartbeat Thread
     threading.Thread(target=heartbeat_loop, daemon=True).start()
     
