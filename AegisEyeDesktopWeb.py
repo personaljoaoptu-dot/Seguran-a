@@ -170,18 +170,27 @@ class AegisEyeApi:
         threading.Thread(target=lambda: subprocess.run(["powershell", "-Command", ps_script], capture_output=True), daemon=True).start()
 
 if __name__ == '__main__':
-    # Start the local camera streamer in a background thread to ensure port 8082 is open
+    # Start the local camera streamer in a background thread if port 8082 is not already in use (e.g. by AI pipeline)
     import threading
-    try:
-        import local_camera_streamer
-        streamer_thread = threading.Thread(
-            target=lambda: local_camera_streamer.run_server(8082),
-            daemon=True
-        )
-        streamer_thread.start()
-        print("[DESKTOP] Local camera streamer started automatically on port 8082.")
-    except Exception as streamer_err:
-        print(f"[DESKTOP] Failed to start local camera streamer: {streamer_err}")
+    import socket
+
+    def is_port_in_use(port):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            return s.connect_ex(('127.0.0.1', port)) == 0
+
+    if not is_port_in_use(8082):
+        try:
+            import local_camera_streamer
+            streamer_thread = threading.Thread(
+                target=lambda: local_camera_streamer.run_server(8082),
+                daemon=True
+            )
+            streamer_thread.start()
+            print("[DESKTOP] Local camera streamer started automatically on port 8082.")
+        except Exception as streamer_err:
+            print(f"[DESKTOP] Failed to start local camera streamer: {streamer_err}")
+    else:
+        print("[DESKTOP] Port 8082 is already in use. Skipping local camera streamer (running on active vision pipeline).")
 
     api = AegisEyeApi()
     
