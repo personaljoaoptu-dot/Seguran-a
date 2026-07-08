@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="style.css?v=5">
+    <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
     <div class="app-container">
@@ -156,25 +156,19 @@
                                 </div>
                             </div>
                             
-                            <!-- Interactive Simulation Control -->
-                            <div class="simulation-controls">
-                                <div class="sim-select-group">
-                                    <select id="sim-type-selector" class="sim-dropdown">
-                                        <option value="concealment">Ocultamento de Produto</option>
-                                        <option value="lingering">Permanência Excessiva (Bebidas)</option>
-                                        <option value="running">Pessoa Correndo / Briga</option>
-                                        <option value="fall">Queda de Cliente (Segurança)</option>
-                                        <option value="shelf">Gôndola Vazia / Reposição</option>
-                                    </select>
-                                    <button class="action-btn" id="btn-trigger-suspicious">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                                        Simular Ação
-                                    </button>
+                            <!-- Interactive Simulation Control replaced with System Health Status -->
+                            <div class="system-health-status" style="display: flex; justify-content: space-around; align-items: center; padding: 12px; background: var(--slate-950); border: 1px solid var(--slate-800); border-radius: var(--radius-md); margin-top: 12px; gap: 16px;">
+                                <div class="health-item" style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="pulse-dot" id="health-camera-dot" style="background-color: #10b981; width: 8px; height: 8px; border-radius: 50%;"></span>
+                                    <span style="font-size: 11px; font-weight: 600; color: var(--slate-300);">Câmera: <strong id="health-camera-status" style="color: #10b981;">Online</strong></span>
                                 </div>
-                                <div class="sim-speed-selector">
-                                    <span class="sim-speed-label">Sensibilidade IA:</span>
-                                    <input type="range" min="50" max="95" value="75" class="range-slider" id="sensitivity-slider">
-                                    <span class="sim-speed-value" id="sensitivity-val">75%</span>
+                                <div class="health-item" style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="pulse-dot" id="health-ai-dot" style="background-color: #10b981; width: 8px; height: 8px; border-radius: 50%;"></span>
+                                    <span style="font-size: 11px; font-weight: 600; color: var(--slate-300);">Inteligência IA: <strong id="health-ai-status" style="color: #10b981;">Ativa</strong></span>
+                                </div>
+                                <div class="health-item" style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="pulse-dot" id="health-cloud-dot" style="background-color: #10b981; width: 8px; height: 8px; border-radius: 50%;"></span>
+                                    <span style="font-size: 11px; font-weight: 600; color: var(--slate-300);">Conexão Nuvem: <strong id="health-cloud-status" style="color: #10b981;">Online</strong></span>
                                 </div>
                             </div>
                         </div>
@@ -297,7 +291,10 @@
                                 <h3>Mapa de Calor de Riscos (Planta da Loja)</h3>
                                 <p class="card-subtitle">Áreas com maior incidência de alertas comportamentais acumulados nas últimas 24 horas</p>
                             </div>
-                            <div class="map-controls">
+                            <div class="map-controls" style="display: flex; align-items: center; gap: 8px;">
+                                <select id="analytics-camera-select" class="form-select btn-sm" style="background: var(--slate-900); color: var(--slate-200); border: 1px solid var(--slate-800); border-radius: var(--radius-sm); padding: 5px 10px; font-size: 11px; cursor: pointer; outline: none; height: 30px;">
+                                    <option value="all">Todas as Câmeras</option>
+                                </select>
                                 <button class="action-btn btn-sm active" id="btn-toggle-heatmap">Calor Ativo</button>
                                 <button class="action-btn btn-sm" id="btn-reset-heatmap">Resetar Dados</button>
                             </div>
@@ -336,16 +333,16 @@
                                     <text x="12" y="52" class="chart-text label" text-anchor="end">Corr. 2</text>
                                     
                                     <!-- Bars -->
-                                    <rect x="15" y="6" width="75" height="6" rx="2" fill="url(#rose-grad)"/>
-                                    <rect x="15" y="20" width="50" height="6" rx="2" fill="url(#amber-grad)"/>
-                                    <rect x="15" y="34" width="30" height="6" rx="2" fill="url(#cyan-grad)"/>
-                                    <rect x="15" y="48" width="15" height="6" rx="2" fill="url(#indigo-grad)"/>
+                                    <rect id="bar-bebidas" x="15" y="6" width="75" height="6" rx="2" fill="url(#rose-grad)"/>
+                                    <rect id="bar-corr1" x="15" y="20" width="50" height="6" rx="2" fill="url(#amber-grad)"/>
+                                    <rect id="bar-caixas" x="15" y="34" width="30" height="6" rx="2" fill="url(#cyan-grad)"/>
+                                    <rect id="bar-corr2" x="15" y="48" width="15" height="6" rx="2" fill="url(#indigo-grad)"/>
                                     
                                     <!-- Values -->
-                                    <text x="93" y="10" class="chart-text val">15</text>
-                                    <text x="68" y="24" class="chart-text val">10</text>
-                                    <text x="48" y="38" class="chart-text val">6</text>
-                                    <text x="33" y="52" class="chart-text val">3</text>
+                                    <text id="val-bebidas" x="93" y="10" class="chart-text val">15</text>
+                                    <text id="val-corr1" x="68" y="24" class="chart-text val">10</text>
+                                    <text id="val-caixas" x="48" y="38" class="chart-text val">6</text>
+                                    <text id="val-corr2" x="33" y="52" class="chart-text val">3</text>
                                     
                                     <defs>
                                         <linearGradient id="rose-grad" x1="0" y1="0" x2="1" y2="0">
@@ -380,14 +377,14 @@
                                     <line x1="10" y1="40" x2="95" y2="40" stroke="var(--slate-800)" stroke-width="1"/>
                                     
                                     <!-- Chart line -->
-                                    <path d="M 10 38 Q 25 35 35 22 T 60 12 T 80 30 T 95 38" fill="none" stroke="var(--cyan-500)" stroke-width="1.5"/>
+                                    <path id="line-chart-path" d="M 10 38 Q 25 35 35 22 T 60 12 T 80 30 T 95 38" fill="none" stroke="var(--cyan-500)" stroke-width="1.5"/>
                                     
                                     <!-- Points -->
-                                    <circle cx="10" cy="38" r="1.2" fill="var(--cyan-500)"/>
-                                    <circle cx="35" cy="22" r="1.2" fill="var(--cyan-500)"/>
-                                    <circle cx="60" cy="12" r="1.2" fill="var(--cyan-500)"/>
-                                    <circle cx="80" cy="30" r="1.2" fill="var(--cyan-500)"/>
-                                    <circle cx="95" cy="38" r="1.2" fill="var(--cyan-500)"/>
+                                    <circle id="circle-08h" cx="10" cy="38" r="1.2" fill="var(--cyan-500)"/>
+                                    <circle id="circle-12h" cx="35" cy="22" r="1.2" fill="var(--cyan-500)"/>
+                                    <circle id="circle-16h" cx="60" cy="12" r="1.2" fill="var(--cyan-500)"/>
+                                    <circle id="circle-20h" cx="80" cy="30" r="1.2" fill="var(--cyan-500)"/>
+                                    <circle id="circle-22h" cx="95" cy="38" r="1.2" fill="var(--cyan-500)"/>
                                     
                                     <!-- X Axis Labels -->
                                     <text x="10" y="46" class="chart-text axis" text-anchor="middle">08h</text>
@@ -902,6 +899,6 @@
     </div>
 
     <!-- Javascript Logic -->
-    <script src="app.js?v=14"></script>
+    <script src="app.js?v=15"></script>
 </body>
 </html>

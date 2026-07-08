@@ -7,11 +7,13 @@ CREATE TABLE IF NOT EXISTS public.alertas (
     severity VARCHAR(50) NOT NULL, -- critical, warning, medium
     title VARCHAR(255) NOT NULL,
     details TEXT,
-    confidence FLOAT,
-    trigger_type VARCHAR(100), -- CONCEALMENT_ROI, LINGER_ROI
+    confidence_score DOUBLE PRECISION,
+    risk_type VARCHAR(100), -- CONCEALMENT_ROI, LINGER_ROI
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    user_id UUID,
     track_id INT,
-    video_url VARCHAR(512),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    video_url TEXT,
+    status VARCHAR(50) DEFAULT 'active'
 );
 
 -- Index for fast query by tenant

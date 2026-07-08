@@ -217,6 +217,10 @@
                                     <select id="camera-select-dropdown" class="sim-dropdown" style="min-width: 250px; font-weight: 600; padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--slate-700); background-color: var(--slate-950); color: var(--slate-200);" onchange="changeDesktopLiveCamera(this.value)">
                                         <!-- Dynamic options -->
                                     </select>
+                                    <span id="camera-status-indicator" style="font-size: 11px; font-weight: 700; background: var(--slate-900); padding: 4px 10px; border-radius: var(--radius-sm); display: flex; align-items: center; gap: 6px;">
+                                        <span id="camera-status-dot" style="width: 8px; height: 8px; border-radius: 50%; background-color: #f59e0b;"></span>
+                                        <span id="camera-status-text" style="color: var(--slate-300);">OFFLINE</span>
+                                    </span>
                                 </div>
                                 <div class="video-controls">
                                     <span class="video-fps">FPS: 30.2</span>
@@ -228,6 +232,22 @@
                             <div class="canvas-wrapper" style="position: relative; background-color: #000; border-radius: var(--radius-md); overflow: hidden; aspect-ratio: 16/9; display: flex; justify-content: center; align-items: center;">
                                 <img id="desktop-live-stream-img" src="" style="max-width: 100%; max-height: 100%; object-fit: contain; display: none;" />
                                 <div id="desktop-live-placeholder" style="color: var(--slate-500); font-style: italic;">Selecione uma câmera conectada para ver a imagem.</div>
+                            </div>
+                            
+                            <!-- System Health Status Indicator -->
+                            <div class="system-health-status" style="display: flex; justify-content: space-around; align-items: center; padding: 12px; background: var(--slate-950); border: 1px solid var(--slate-800); border-radius: var(--radius-md); margin-top: 12px; gap: 16px; margin-bottom: 12px;">
+                                <div class="health-item" style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="pulse-dot" id="health-camera-dot" style="background-color: #10b981; width: 8px; height: 8px; border-radius: 50%;"></span>
+                                    <span style="font-size: 11px; font-weight: 600; color: var(--slate-300);">Câmera: <strong id="health-camera-status" style="color: #10b981;">Online</strong></span>
+                                </div>
+                                <div class="health-item" style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="pulse-dot" id="health-ai-dot" style="background-color: #10b981; width: 8px; height: 8px; border-radius: 50%;"></span>
+                                    <span style="font-size: 11px; font-weight: 600; color: var(--slate-300);">Inteligência IA: <strong id="health-ai-status" style="color: #10b981;">Ativa</strong></span>
+                                </div>
+                                <div class="health-item" style="display: flex; align-items: center; gap: 8px;">
+                                    <span class="pulse-dot" id="health-cloud-dot" style="background-color: #10b981; width: 8px; height: 8px; border-radius: 50%;"></span>
+                                    <span style="font-size: 11px; font-weight: 600; color: var(--slate-300);">Conexão Nuvem: <strong id="health-cloud-status" style="color: #10b981;">Online</strong></span>
+                                </div>
                             </div>
                         </div>
                         
@@ -244,10 +264,23 @@
                     
                     <!-- Alert Queue Column -->
                     <div class="alert-column">
-                        <div class="alerts-header">
+                        <div class="alerts-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <h2>Fila de Alertas Operacionais</h2>
-                            <span class="alert-count-badge" id="active-alert-badge">0 ativos</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button id="btn-sound-toggle" onclick="toggleSound()" title="Silenciar Notificações" style="background: var(--slate-900); border: 1px solid var(--slate-800); color: var(--slate-300); padding: 4px 8px; border-radius: var(--radius-sm); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; font-size: 14px;">
+                                    🔊
+                                </button>
+                                <span class="alert-count-badge" id="active-alert-badge">0 ativos</span>
+                            </div>
                         </div>
+
+                        <!-- Quick Filters -->
+                        <div class="alert-filters" style="display: flex; gap: 6px; margin: 8px 0 12px 0;">
+                            <button class="filter-btn active" id="filter-btn-all" onclick="setAlertFilter('all')" style="background: var(--color-primary); color: #000; border: none; padding: 4px 10px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 11px; transition: all 0.2s;">Todos</button>
+                            <button class="filter-btn" id="filter-btn-critical" onclick="setAlertFilter('critical')" style="background: var(--slate-950); color: var(--slate-400); border: 1px solid var(--slate-800); padding: 4px 10px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 11px; transition: all 0.2s;">Críticos</button>
+                            <button class="filter-btn" id="filter-btn-warning" onclick="setAlertFilter('warning')" style="background: var(--slate-950); color: var(--slate-400); border: 1px solid var(--slate-800); padding: 4px 10px; border-radius: 12px; cursor: pointer; font-weight: 600; font-size: 11px; transition: all 0.2s;">Atenção</button>
+                        </div>
+                        
                         <div class="alerts-queue" id="alerts-queue-container">
                             <!-- Dynamic Alert Cards rendered exactly like web -->
                         </div>
@@ -390,8 +423,83 @@
             alerts: [],
             shownAlertIds: new Set(),
             firstLoad: true,
-            currentModalAlert: null
+            currentModalAlert: null,
+            soundEnabled: true,
+            activeAlertFilter: 'all',
+            isEdgeOnline: true
         };
+
+        // Sound Toggle
+        function toggleSound() {
+            state.soundEnabled = !state.soundEnabled;
+            const btn = document.getElementById('btn-sound-toggle');
+            if (btn) {
+                btn.innerText = state.soundEnabled ? '🔊' : '🔇';
+                btn.title = state.soundEnabled ? 'Silenciar Notificações' : 'Ativar Notificações';
+            }
+            addConsoleLog(state.soundEnabled ? 'Notificações sonoras ativadas.' : 'Notificações sonoras silenciadas.', 'info');
+        }
+
+        // Web Audio API synth notification sound
+        function playNotificationSound() {
+            if (!state.soundEnabled) return;
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                
+                // Tone 1: C5 (523.25 Hz)
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(523.25, ctx.currentTime);
+                gain1.gain.setValueAtTime(0.12, ctx.currentTime);
+                gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                
+                // Tone 2: G5 (783.99 Hz)
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(783.99, ctx.currentTime + 0.08);
+                gain2.gain.setValueAtTime(0.0, ctx.currentTime);
+                gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.08);
+                gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                
+                osc1.start(ctx.currentTime);
+                osc1.stop(ctx.currentTime + 0.25);
+                osc2.start(ctx.currentTime + 0.08);
+                osc2.stop(ctx.currentTime + 0.35);
+            } catch (e) {
+                console.error("Audio Notification error:", e);
+            }
+        }
+
+        // Set Alert Filter
+        function setAlertFilter(filterValue) {
+            state.activeAlertFilter = filterValue;
+            
+            // Update button styles
+            document.querySelectorAll('.alert-filters .filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.style.background = 'var(--slate-950)';
+                btn.style.color = 'var(--slate-400)';
+                btn.style.border = '1px solid var(--slate-800)';
+            });
+            
+            const activeBtn = document.getElementById(`filter-btn-${filterValue}`);
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+                activeBtn.style.background = 'var(--color-primary)';
+                activeBtn.style.color = '#000';
+                activeBtn.style.border = 'none';
+            }
+            
+            renderDesktopAlertsQueue();
+        }
 
         // Switch Tabs
         function switchDesktopTab(tabName, el) {
@@ -458,10 +566,12 @@
                     // Start dynamic alerts and cameras sync
                     fetchDesktopDatabaseAlerts();
                     fetchDesktopDatabaseCameras();
+                    checkDesktopEdgeStatus();
                     if (window.alertsInterval) clearInterval(window.alertsInterval);
                     window.alertsInterval = setInterval(() => {
                         fetchDesktopDatabaseAlerts();
                         fetchDesktopDatabaseCameras();
+                        checkDesktopEdgeStatus();
                     }, 4000);
                 } else {
                     alert("Erro: " + res.error);
@@ -490,6 +600,7 @@
                                     `🚨 ALERTA CRÍTICO - AegisEye`,
                                     `Câmera: ${alert.camera}. ${alert.title} (${alert.confidence}% de certeza).`
                                 );
+                                playNotificationSound();
                             }
                             
                             // Log to virtual console
@@ -499,6 +610,7 @@
 
                     state.firstLoad = false;
                     state.alerts = newAlerts;
+                    state.todayCount = res.today_count;
                     renderDesktopAlertsQueue();
                 }
             }).catch(err => {
@@ -588,28 +700,98 @@
         }
 
         // Render Alerts Queue dynamically (exact match of web cards and buttons)
+        // Check Edge Status via Python bridge
+        function checkDesktopEdgeStatus() {
+            if (!state.tenantId) return;
+            window.pywebview.api.check_edge_status(state.tenantId).then(response => {
+                const res = JSON.parse(response);
+                const online = res.success && res.online;
+                state.isEdgeOnline = online;
+                
+                // Update health status bar
+                const camDot = document.getElementById('health-camera-dot');
+                const camText = document.getElementById('health-camera-status');
+                const aiDot = document.getElementById('health-ai-dot');
+                const aiText = document.getElementById('health-ai-status');
+                const cloudDot = document.getElementById('health-cloud-dot');
+                const cloudText = document.getElementById('health-cloud-status');
+
+                if (camDot && camText) {
+                    const select = document.getElementById('camera-select-dropdown');
+                    const camOnline = select.value !== "" && online;
+                    camDot.style.backgroundColor = camOnline ? '#10b981' : '#ef4444';
+                    camText.innerText = camOnline ? 'Online' : 'Offline';
+                    camText.style.color = camOnline ? '#10b981' : '#ef4444';
+                }
+                if (aiDot && aiText) {
+                    aiDot.style.backgroundColor = online ? '#10b981' : '#ef4444';
+                    aiText.innerText = online ? 'Ativa' : 'Inativa';
+                    aiText.style.color = online ? '#10b981' : '#ef4444';
+                }
+                if (cloudDot && cloudText) {
+                    cloudDot.style.backgroundColor = '#10b981';
+                    cloudText.innerText = 'Online';
+                    cloudText.style.color = '#10b981';
+                }
+                renderDesktopAlertsQueue();
+            }).catch(err => {
+                state.isEdgeOnline = false;
+                const cloudDot = document.getElementById('health-cloud-dot');
+                const cloudText = document.getElementById('health-cloud-status');
+                if (cloudDot && cloudText) {
+                    cloudDot.style.backgroundColor = '#ef4444';
+                    cloudText.innerText = 'Offline';
+                    cloudText.style.color = '#ef4444';
+                }
+                renderDesktopAlertsQueue();
+            });
+        }
+
         function renderDesktopAlertsQueue() {
             const container = document.getElementById('alerts-queue-container');
             container.innerHTML = '';
             
-            // Update stats indicators
-            document.getElementById('stats-alerts-count').innerText = state.alerts.length;
-            document.getElementById('active-alert-badge').innerText = `${state.alerts.length} ativos`;
-            
-            const savedValue = state.alerts.filter(a => a.severity === 'critical').length * 250 + state.alerts.filter(a => a.severity === 'warning').length * 100;
-            document.getElementById('stats-saved-value').innerText = `R$ ${savedValue.toLocaleString('pt-BR')}`;
-
-            if (state.alerts.length === 0) {
+            if (!state.isEdgeOnline) {
+                document.getElementById('active-alert-badge').innerText = `0 ativos`;
                 container.innerHTML = `
-                    <div class="empty-alerts-notice" style="text-align: center; padding: 40px 20px; color: var(--slate-600); border: 1px dashed var(--slate-800); border-radius: var(--radius-md);">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 32px; height: 32px; margin-bottom: 8px; opacity: 0.5;"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
-                        <p>Nenhum alerta pendente</p>
+                    <div class="empty-alerts-notice" style="text-align: center; padding: 40px 20px; color: #ef4444; border: 1px dashed #ef4444; border-radius: var(--radius-md); background: rgba(239, 68, 68, 0.05);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 32px; height: 32px; margin-bottom: 8px; color: #ef4444;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                        <p style="font-weight: bold; font-size: 13px;">Conexão Perdida: Aguardando sinal do Edge</p>
                     </div>
                 `;
                 return;
             }
 
-            state.alerts.forEach((alert, index) => {
+            // Filter out alerts with invalid confidence score
+            const validAlerts = state.alerts.filter(alert => 
+                alert.confidence && 
+                alert.confidence !== 'undefined' && 
+                alert.confidence !== undefined
+            );
+
+            // Update stats indicators
+            document.getElementById('stats-alerts-count').innerText = (state.todayCount !== undefined) ? state.todayCount : validAlerts.length;
+            document.getElementById('active-alert-badge').innerText = `${validAlerts.length} ativos`;
+            
+            const savedValue = validAlerts.filter(a => a.severity === 'critical').length * 250 + validAlerts.filter(a => a.severity === 'warning').length * 100;
+            document.getElementById('stats-saved-value').innerText = `R$ ${savedValue.toLocaleString('pt-BR')}`;
+
+            let filteredAlerts = validAlerts;
+            if (state.activeAlertFilter !== 'all') {
+                filteredAlerts = validAlerts.filter(a => a.severity === state.activeAlertFilter);
+            }
+
+            if (filteredAlerts.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-alerts-notice" style="text-align: center; padding: 40px 20px; color: var(--slate-600); border: 1px dashed var(--slate-800); border-radius: var(--radius-md);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 32px; height: 32px; margin-bottom: 8px; opacity: 0.5;"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
+                        <p>Nenhum alerta detectado até o momento</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filteredAlerts.forEach((alert, index) => {
                 const card = document.createElement('div');
                 card.className = `alert-card ${alert.severity} ${index === 0 ? 'anim-pulse-card' : ''}`;
                 card.setAttribute('data-alert-id', alert.id);
@@ -624,10 +806,20 @@
                     </button>
                 ` : '';
 
+                let alertTimeLocal = alert.time;
+                if (alert.timestamp) {
+                    try {
+                        const dateObj = new Date(alert.timestamp);
+                        alertTimeLocal = dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                    } catch (e) {
+                        console.error("Erro ao converter timestamp local:", e);
+                    }
+                }
+
                 card.innerHTML = `
                     <div class="alert-card-header">
                         <span class="severity-badge ${alert.severity}">${labelSeverity}</span>
-                        <span class="alert-time">${alert.time}</span>
+                        <span class="alert-time">${alertTimeLocal}</span>
                     </div>
                     <div class="alert-card-body">
                         <h3 class="alert-title">${alert.title}</h3>
@@ -649,7 +841,6 @@
             });
         }
 
-        // Process Alert feedback correct/incorrect inside desktop
         function handleDesktopAlertFeedback(id, isTruePositive) {
             const idx = state.alerts.findIndex(a => a.id === id);
             if (idx === -1) return;
@@ -658,6 +849,20 @@
                 addConsoleLog(`Alerta #${id.substring(0,6)} confirmado como VERDADEIRO POSITIVO.`, 'success');
             } else {
                 addConsoleLog(`Alerta #${id.substring(0,6)} marcado como FALSO ALARME.`, 'error');
+            }
+
+            // Persist resolved status in database
+            if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.resolve_alert === 'function') {
+                window.pywebview.api.resolve_alert(id, isTruePositive ? 'correct' : 'incorrect')
+                    .then(response => {
+                        const res = JSON.parse(response);
+                        if (!res.success) {
+                            console.error("Erro ao salvar feedback do alerta no banco:", res.error);
+                        }
+                    })
+                    .catch(err => {
+                        console.error("Falha ao comunicar com API de resolução do desktop:", err);
+                    });
             }
 
             const card = document.querySelector(`.alert-card[data-alert-id="${id}"]`);
@@ -740,7 +945,8 @@
             state.cameras.forEach((cam, index) => {
                 const opt = document.createElement('option');
                 opt.value = index;
-                opt.innerText = cam.name.toUpperCase();
+                const statusEmoji = cam.status === 'online' ? '🟢' : '🔴';
+                opt.innerText = `${statusEmoji} ${cam.name.toUpperCase()}${cam.status === 'offline' ? ' (OFFLINE)' : ''}`;
                 select.appendChild(opt);
             });
             
@@ -754,20 +960,31 @@
         function changeDesktopLiveCamera(camIndex) {
             const player = document.getElementById('desktop-live-stream-img');
             const placeholder = document.getElementById('desktop-live-placeholder');
+            const statusIndicator = document.getElementById('camera-status-indicator');
+            const statusDot = document.getElementById('camera-status-dot');
+            const statusText = document.getElementById('camera-status-text');
             
             if (camIndex === "") {
                 player.src = '';
                 player.style.display = 'none';
                 placeholder.style.display = 'block';
+                if (statusIndicator) statusIndicator.style.display = 'none';
                 return;
             }
 
             const cam = state.cameras[camIndex];
+            if (statusIndicator && statusDot && statusText && cam) {
+                statusIndicator.style.display = 'flex';
+                const isOnline = cam.status === 'online';
+                statusDot.style.backgroundColor = isOnline ? '#10b981' : '#ef4444';
+                statusText.innerText = isOnline ? 'ONLINE' : 'OFFLINE (SIMULAÇÃO)';
+            }
+
             if (cam && cam.rtsp && cam.rtsp.startsWith('rtsp://')) {
-                player.src = `http://localhost:8082/stream_ai?rtsp=${encodeURIComponent(cam.rtsp)}`;
+                player.src = `http://localhost:8082/stream_ai?rtsp=${encodeURIComponent(cam.rtsp)}&camera_id=${encodeURIComponent(cam.id || '')}&camera_name=${encodeURIComponent(cam.name || '')}&tenant_id=${encodeURIComponent(state.tenantId || '')}`;
                 player.style.display = 'block';
                 placeholder.style.display = 'none';
-                addConsoleLog(`Iniciado monitoramento ao vivo: Câmera "${cam.name}"`, 'info');
+                addConsoleLog(`Iniciado monitoramento ao vivo: Câmera "${cam.name}" (${cam.status === 'online' ? 'Real' : 'Simulado'})`, 'info');
             } else {
                 player.src = '';
                 player.style.display = 'none';

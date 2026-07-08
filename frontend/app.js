@@ -155,6 +155,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let modalFrame = 0;
     let currentModalAlert = null;
     let isHeatmapActive = true;
+    window.heatmapValues = {
+        bebidas: 15,
+        corr1: 10,
+        caixas: 6,
+        corr2: 3
+    };
     let statsAlertsCount = 0;
     let statsSavedValue = 0;
     let nextAlertId = 1;
@@ -176,6 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 4, name: "Caixa 2 (Autoatendimento)", status: "online", device: "Intelbras VIP 1230 D", rtsp: "rtsp://192.168.1.100/ch5", profile: "Checkout Não Escaneado", type: "checkout" }
     ];
 
+    let editingCameraId = null;
+
     let alertsList = [];
 
     // --- DOM ELEMENTS ---
@@ -193,10 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const activeCamTitle = document.getElementById('active-cam-title');
     const videoCanvas = document.getElementById('video-canvas');
     const detectionNotice = document.getElementById('detection-notice');
-    const btnTriggerSuspicious = document.getElementById('btn-trigger-suspicious');
-    const simTypeSelector = document.getElementById('sim-type-selector');
-    const sensitivitySlider = document.getElementById('sensitivity-slider');
-    const sensitivityVal = document.getElementById('sensitivity-val');
+    // Simulation variables removed
     const consoleLogs = document.getElementById('console-logs');
     const btnClearLogs = document.getElementById('btn-clear-logs');
     const alertsQueueContainer = document.getElementById('alerts-queue-container');
@@ -380,12 +385,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (serverErr) {
                 online = false;
+                const cloudDot = document.getElementById('health-cloud-dot');
+                const cloudText = document.getElementById('health-cloud-status');
+                if (cloudDot && cloudText) {
+                    cloudDot.style.backgroundColor = '#ef4444';
+                    cloudText.innerText = 'Offline';
+                    cloudText.style.color = '#ef4444';
+                }
             }
         }
         
         isEdgeOnline = online;
         updateActiveStreams();
         
+        // Update System Health status indicators
+        const camDot = document.getElementById('health-camera-dot');
+        const camText = document.getElementById('health-camera-status');
+        const aiDot = document.getElementById('health-ai-dot');
+        const aiText = document.getElementById('health-ai-status');
+        const cloudDot = document.getElementById('health-cloud-dot');
+        const cloudText = document.getElementById('health-cloud-status');
+
+        if (camDot && camText) {
+            const cam = cameraList[activeCameraId];
+            const camOnline = cam && (cam.status === 'online' || cam.status === 'warning') && isEdgeOnline;
+            camDot.style.backgroundColor = camOnline ? '#10b981' : '#ef4444';
+            camText.innerText = camOnline ? 'Online' : 'Offline';
+            camText.style.color = camOnline ? '#10b981' : '#ef4444';
+        }
+        if (aiDot && aiText) {
+            aiDot.style.backgroundColor = isEdgeOnline ? '#10b981' : '#ef4444';
+            aiText.innerText = isEdgeOnline ? 'Ativa' : 'Inativa';
+            aiText.style.color = isEdgeOnline ? '#10b981' : '#ef4444';
+        }
+        if (cloudDot && cloudText && online) {
+            cloudDot.style.backgroundColor = '#10b981';
+            cloudText.innerText = 'Online';
+            cloudText.style.color = '#10b981';
+        }
+
+        // Trigger queue view update to handle lost connection screen
+        updateAlertsQueueHTML();
+
         const dot = document.querySelector('.pulse-dot');
         const text = document.querySelector('.status-text');
         if (dot && text) {
@@ -447,7 +488,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (targetTab === 'analytics') {
                 viewTitle.innerText = "Analytics & Heatmaps";
                 viewSubtitle.innerText = "Métricas agregadas e análise espacial de perdas";
-                setTimeout(drawHeatmap, 50); // Redraw heatmap canvas when tab shown
+                if (typeof syncAnalyticsData === 'function') {
+                    syncAnalyticsData();
+                } else {
+                    setTimeout(drawHeatmap, 50);
+                }
             } else if (targetTab === 'cameras') {
                 viewTitle.innerText = "Gerenciar Câmeras";
                 viewSubtitle.innerText = "Configuração de conexões RTSP locais e inteligência por câmera";
@@ -463,6 +508,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    setInterval(() => {
+        if (activeTab === 'analytics' && typeof syncAnalyticsData === 'function') {
+            syncAnalyticsData();
+        }
+    }, 5000);
 
     // --- SYSTEM LOGS CONSOLE ---
     function addLog(text, type = 'info') {
@@ -482,18 +533,37 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- ALERTS QUEUE MANAGEMENT ---
     function updateAlertsQueueHTML() {
         alertsQueueContainer.innerHTML = '';
-        activeAlertBadge.innerText = `${alertsList.length} ativos`;
         
-        let filteredAlerts = alertsList;
+        if (!isEdgeOnline) {
+            activeAlertBadge.innerText = `0 ativos`;
+            alertsQueueContainer.innerHTML = `
+                <div class="empty-alerts-notice" style="text-align: center; padding: 40px 20px; color: #ef4444; border: 1px dashed #ef4444; border-radius: var(--radius-md); background: rgba(239, 68, 68, 0.05);">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 32px; height: 32px; margin-bottom: 8px; color: #ef4444;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <p style="font-weight: bold; font-size: 13px;">Conexão Perdida: Aguardando sinal do Edge</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Filter out alerts with invalid confidence score
+        const validAlerts = alertsList.filter(alert => 
+            alert.confidence && 
+            alert.confidence !== 'undefined' && 
+            alert.confidence !== undefined
+        );
+
+        activeAlertBadge.innerText = `${validAlerts.length} ativos`;
+        
+        let filteredAlerts = validAlerts;
         if (activeAlertFilter !== 'all') {
-            filteredAlerts = alertsList.filter(a => a.severity === activeAlertFilter);
+            filteredAlerts = validAlerts.filter(a => a.severity === activeAlertFilter);
         }
 
         if (filteredAlerts.length === 0) {
             alertsQueueContainer.innerHTML = `
                 <div class="empty-alerts-notice" style="text-align: center; padding: 40px 20px; color: var(--slate-600); border: 1px dashed var(--slate-800); border-radius: var(--radius-md);">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 32px; height: 32px; margin-bottom: 8px; opacity: 0.5;"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg>
-                    <p>Nenhum alerta ${activeAlertFilter !== 'all' ? (activeAlertFilter === 'critical' ? 'crítico ' : 'de atenção ') : ''}pendente</p>
+                    <p>Nenhum alerta detectado até o momento</p>
                 </div>
             `;
             return;
@@ -540,14 +610,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         document.querySelectorAll('.btn-feedback.correct').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.getAttribute('data-alert-id'));
+                const id = e.target.getAttribute('data-alert-id');
                 handleAlertFeedback(id, true);
             });
         });
 
         document.querySelectorAll('.btn-feedback.incorrect').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const id = parseInt(e.target.getAttribute('data-alert-id'));
+                const id = e.target.getAttribute('data-alert-id');
                 handleAlertFeedback(id, false);
             });
         });
@@ -555,7 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.btn-view-evidence').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const button = e.currentTarget;
-                const id = parseInt(button.getAttribute('data-alert-id'));
+                const id = button.getAttribute('data-alert-id');
                 openEvidenceModal(id);
             });
         });
@@ -643,6 +713,24 @@ document.addEventListener('DOMContentLoaded', () => {
             addLog(`Alerta #${id} marcado como FALSO ALARME. Atualizando parâmetros da IA de comportamento.`, 'error');
         }
 
+        // Persist resolved status in database
+        if (alert.db_id) {
+            fetch('/api/resolve-alert', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ alert_id: alert.db_id })
+            }).then(res => res.json())
+              .then(res => {
+                  if (!res.success) {
+                      console.error("Erro ao salvar feedback do alerta no servidor:", res.message);
+                  }
+              }).catch(err => {
+                  console.error("Erro de conexão ao salvar feedback do alerta:", err);
+              });
+        }
+
         // Add visual fadeout effect to card
         const card = document.querySelector(`.alert-card[data-alert-id="${id}"]`);
         if (card) {
@@ -707,20 +795,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    sensitivitySlider.addEventListener('input', (e) => {
-        sensitivityVal.innerText = `${e.target.value}%`;
-    });
-
-    btnTriggerSuspicious.addEventListener('click', () => {
-        if (isSuspiciousActive) {
-            addLog('A simulação já está em andamento nesta câmera.', 'warning');
-            return;
-        }
-        isSuspiciousActive = true;
-        suspiciousPhase = 0;
-        liveFrame = 0;
-        addLog(`Iniciando simulação de comportamento suspeito na câmera: ${cameraList[activeCameraId].name}.`, 'warning');
-    });
+    // Botoes de simulacao removidos
 
     function loadCameraLayout(id) {
         const key = `aegiseye_map_layout_cam_${id}`;
@@ -1051,148 +1126,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     }
 
-                    // Handle Normal / Suspicious Simulation (Only if not streaming real video)
+                    // Bounding boxes simulation removed for SaaS premium audit
                     if (!isStreaming) {
-                        if (!isSuspiciousActive) {
-                            const cycle = (liveFrame % 300) / 300;
-                            let px = W/2 + Math.sin(cycle * Math.PI * 2) * 100;
-                            let py = H/2 + Math.cos(cycle * Math.PI * 2) * 40 + 50;
-
-                            drawTrackObject(ctx, px, py, 120, "Pessoa #187", '#00f0ff');
-                            detectionNotice.classList.remove('active');
-                            detectionNotice.innerText = "Nenhuma atividade suspeita no momento";
-                        } else {
-                            const simType = simTypeSelector.value;
-                            const timeline = liveFrame % 380;
-                            
-                            if (simType === 'concealment') {
-                                let px = W / 2, py = H - 50, actionState = 'walk';
-                                const targetShelf = mapElements.find(item => item.type === 'shelf');
-                                let targetX = 320, targetY = 220;
-                                if (targetShelf) {
-                                    targetX = targetShelf.x + targetShelf.w + 40;
-                                    targetY = targetShelf.y + targetShelf.h / 2;
-                                } else {
-                                    const targetCheckout = mapElements.find(item => item.type === 'checkout_counter');
-                                    if (targetCheckout) {
-                                        targetX = targetCheckout.x + targetCheckout.w / 2;
-                                        targetY = targetCheckout.y - 40;
-                                    }
-                                }
-
-                                if (timeline < 120) {
-                                    px = W - 100 - timeline * 1.5;
-                                    py = H - 80;
-                                    drawTrackObject(ctx, px, py, 120, "Pessoa #194", '#00f0ff', 'walk');
-                                } else if (timeline < 200) {
-                                    px = W - 100 - 120 * 1.5;
-                                    py = H - 80 - (timeline - 120) * 1.5;
-                                    drawTrackObject(ctx, px, py, 120, "Pessoa #194", '#00f0ff', 'walk');
-                                } else if (timeline < 240) {
-                                    px = targetX;
-                                    py = targetY;
-                                    drawTrackObject(ctx, px, py, 120, "Pessoa #194", '#eab308', 'reach');
-                                    
-                                    ctx.fillStyle = '#eab308';
-                                    ctx.fillRect(px - 10, py - 40, 20, 20);
-                                    ctx.fillStyle = '#000';
-                                    ctx.font = 'bold 9px sans-serif';
-                                    ctx.fillText("PRODUTO", px - 9, py - 27);
-                                } else if (timeline < 300) {
-                                    px = targetX;
-                                    py = targetY;
-                                    drawTrackObject(ctx, px, py, 120, "Pessoa #194", '#ff0055', 'conceal');
-                                    detectionNotice.classList.add('active');
-                                    detectionNotice.innerText = "⚠ ALERTA DE PERDA: Ocultamento de produto detectado";
-                                    if (timeline === 245) triggerNewAlert("concealment");
-                                } else {
-                                    px = targetX + (timeline - 300) * 2;
-                                    py = targetY + (timeline - 300) * 1.5;
-                                    drawTrackObject(ctx, px, py, 120, "Pessoa #194", '#ff0055', 'walk');
-                                    detectionNotice.classList.remove('active');
-                                }
-                            } else if (simType === 'lingering') {
-                                let px = W / 2 - 100;
-                                let py = H / 2 + 50;
-                                let label = "Pessoa #199";
-                                let trackColor = '#00f0ff';
-                                
-                                if (timeline > 100) {
-                                    trackColor = '#ff9f00';
-                                    detectionNotice.classList.add('active');
-                                    detectionNotice.innerText = `⚠ ALERTA: Tempo de permanência anormal na adega: ${Math.round(timeline/10)}s`;
-                                    if (timeline === 200) triggerNewAlert("lingering");
-                                }
-                                drawTrackObject(ctx, px, py, 110, label, trackColor, 'stand');
-
-                            } else if (simType === 'running') {
-                                let px = 50 + (timeline / 380) * (W - 100);
-                                let py = H/2 + 50;
-                                let trackColor = '#ff0055';
-                                detectionNotice.classList.add('active');
-                                detectionNotice.innerText = `⚠ ALERTA CRÍTICO: Pessoa correndo no corredor (Velocidade Anormal)`;
-                                if (timeline === 100) triggerNewAlert("running");
-                                drawTrackObject(ctx, px, py, 110, "Pessoa #205", trackColor, 'run');
-
-                            } else if (simType === 'fall') {
-                                let px = W/2;
-                                let py = H/2 + 80;
-                                let trackColor = '#ff9f00';
-
-                                if (timeline < 120) {
-                                    px = W/2 - 80 + timeline*0.8;
-                                    drawTrackObject(ctx, px, py, 110, "Pessoa #211", '#00f0ff', 'walk');
-                                } else {
-                                    trackColor = '#ff0055';
-                                    detectionNotice.classList.add('active');
-                                    detectionNotice.innerText = `⚠ ALERTA DE EMERGÊNCIA: Queda de cliente detectada no Corredor 2`;
-                                    if (timeline === 125) triggerNewAlert("fall");
-                                    
-                                    ctx.strokeStyle = trackColor;
-                                    ctx.lineWidth = 2;
-                                    ctx.strokeRect(px - 60, py - 10, 120, 40);
-                                    ctx.fillStyle = trackColor;
-                                    ctx.fillRect(px - 60, py - 30, 90, 20);
-                                    ctx.fillStyle = '#000';
-                                    ctx.font = 'bold 9px monospace';
-                                    ctx.fillText("Queda #211 (94%)", px - 56, py - 16);
-                                    
-                                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-                                    ctx.lineWidth = 1;
-                                    ctx.beginPath(); ctx.arc(px - 40, py + 10, 5, 0, Math.PI*2); ctx.stroke();
-                                    ctx.beginPath(); ctx.moveTo(px - 35, py + 10); ctx.lineTo(px + 20, py + 10); ctx.stroke();
-                                }
-
-                            } else if (simType === 'shelf') {
-                                const targetShelf = mapElements.find(item => item.type === 'shelf');
-                                let sx = 110, sy = 160, sw = 140, sh = 60;
-                                if (targetShelf) {
-                                    sx = targetShelf.x + targetShelf.w * 0.1;
-                                    sy = targetShelf.y + targetShelf.h * 0.3;
-                                    sw = targetShelf.w * 0.8;
-                                    sh = targetShelf.h * 0.2;
-                                }
-                                
-                                detectionNotice.classList.add('active');
-                                detectionNotice.innerText = `⚠ OPERACIONAL: Gôndola vazia detectada no Corredor 1 (Nível 2)`;
-                                if (timeline === 100) triggerNewAlert("shelf");
-
-                                ctx.strokeStyle = '#ff9f00';
-                                ctx.lineWidth = 1.5;
-                                ctx.setLineDash([4, 4]);
-                                ctx.strokeRect(sx, sy, sw, sh);
-                                ctx.setLineDash([]);
-                                
-                                ctx.fillStyle = 'rgba(255, 159, 0, 0.2)';
-                                ctx.fillRect(sx, sy, sw, sh);
-
-                                ctx.fillStyle = '#ff9f00';
-                                ctx.fillRect(sx, sy - 18, 110, 18);
-                                ctx.fillStyle = '#000';
-                                ctx.font = 'bold 9px monospace';
-                                ctx.fillText("Gôndola Vazia (87%)", sx + 4, sy - 6);
-                            }
-                        }
+                        ctx.fillStyle = '#0f172a';
+                        ctx.fillRect(0, 0, W, H);
+                        ctx.fillStyle = '#64748b';
+                        ctx.font = 'italic 12px sans-serif';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(isEdgeOnline ? "Aguardando sinal de vídeo da câmera..." : "Edge Node Offline. Conexão Perdida.", W/2, H/2);
+                        detectionNotice.classList.remove('active');
+                        detectionNotice.innerText = isEdgeOnline ? "Monitorando: Nenhum alerta de risco detectado" : "Conexão Perdida: Aguardando sinal do Edge";
                     } else {
                         // Real stream is active
                         detectionNotice.classList.remove('active');
@@ -1236,17 +1179,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
                         
-                        // If simulation active on this specific camera and not streaming, draw bounding box
-                        if (isSuspiciousActive && cam.id === activeCameraId && !isStreaming) {
-                            gCtx.strokeStyle = '#ff0055';
-                            gCtx.lineWidth = 1.5;
-                            gCtx.strokeRect(gW/3, gH/3, gW/3, gH/3);
-                            gCtx.fillStyle = '#ff0055';
-                            gCtx.fillRect(gW/3, gH/3 - 12, 60, 12);
-                            gCtx.fillStyle = '#000';
-                            gCtx.font = 'bold 7px sans-serif';
-                            gCtx.fillText("SUSPEITA", gW/3 + 3, gH/3 - 3);
-                        }
+                        // Bounding box simulation removed
                     }
                     
                     // Update overlaid timestamp
@@ -1262,138 +1195,143 @@ document.addEventListener('DOMContentLoaded', () => {
         renderLive();
     }
 
-    function drawTrackObject(ctx, x, y, size, label, color, action = 'walk') {
-        const w = size / 2.2;
-        const h = size;
-
-        // Draw bounding box
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x - w/2, y - h/2, w, h);
-
-        // Bounding box label
-        ctx.fillStyle = color;
-        ctx.fillRect(x - w/2, y - h/2 - 16, w + 10, 16);
-        ctx.fillStyle = '#000';
-        ctx.font = 'bold 9px monospace';
-        ctx.fillText(label, x - w/2 + 4, y - h/2 - 4);
-
-        // Draw pose skeleton (visualize behavioral triggers)
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-        ctx.lineWidth = 1;
-        // Head
-        ctx.beginPath(); ctx.arc(x, y - h/2 + 15, 6, 0, Math.PI * 2); ctx.stroke();
-        // Torso
-        ctx.beginPath(); ctx.moveTo(x, y - h/2 + 21); ctx.lineTo(x, y + 10); ctx.stroke();
-        // Shoulders
-        ctx.beginPath(); ctx.moveTo(x - 12, y - h/2 + 25); ctx.lineTo(x + 12, y - h/2 + 25); ctx.stroke();
-        // Arms
-        ctx.beginPath(); ctx.moveTo(x - 12, y - h/2 + 25);
-        if (action === 'reach') {
-            ctx.lineTo(x - 25, y - 5); ctx.lineTo(x - 45, y - 20); // reaching shelf
-        } else if (action === 'conceal') {
-            ctx.lineTo(x - 15, y - 5); ctx.lineTo(x - 2, y + 8); // moving item under jacket
-        } else if (action === 'run') {
-            ctx.lineTo(x - 5, y - 10); ctx.lineTo(x - 25, y - 20); // running arm swing
-        } else if (action === 'stand') {
-            ctx.lineTo(x - 15, y - 5); ctx.lineTo(x - 15, y + 15); // hanging straight down
-        } else {
-            ctx.lineTo(x - 18, y + 5); ctx.lineTo(x - 12, y + 20); // normal swinging
-        }
-        ctx.stroke();
-
-        ctx.beginPath(); ctx.moveTo(x + 12, y - h/2 + 25); ctx.lineTo(x + 18, y + 5); ctx.lineTo(x + 12, y + 20); ctx.stroke();
-        
-        // Legs
-        ctx.beginPath(); ctx.moveTo(x, y + 10); ctx.lineTo(x - 8, y + h/2); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x, y + 10); ctx.lineTo(x + 8, y + h/2); ctx.stroke();
-    }
-
-    function triggerNewAlert(type = "concealment") {
-        // Disable mock simulated alerts when the local edge node is online
-        if (isEdgeOnline) {
-            console.log("[AI] Mock alert skipped because active Edge AI node is online.");
-            return;
-        }
-
-        const camData = cameraList[activeCameraId];
-        if (!camData) return;
-        let title = "Ação suspeita detectada";
-        let details = "Comportamento incomum monitorado.";
-        let severity = "critical";
-        let confidence = 85;
-        let trigger = "Pipeline disparado.";
-        let code = "SUSPICIOUS_GENERIC";
-
-        if (type === "concealment") {
-            title = "Remoção e ocultação rápida";
-            details = "Cliente removeu garrafa de whisky e ocultou sob bolso interno.";
-            severity = "critical";
-            confidence = Math.round(82 + Math.random() * 12);
-            trigger = "YOLO detectou produto -> ByteTrack vinculou track a Pessoa #194 -> Segmentação de pose detectou braço inserindo item sob jaqueta.";
-            code = "CONCEALMENT_FAST";
-        } else if (type === "lingering") {
-            title = "Permanência alta na adega";
-            details = "Cliente parado na zona de risco por mais de 3 minutos.";
-            severity = "warning";
-            confidence = Math.round(85 + Math.random() * 10);
-            trigger = "Objeto de interesse (Adega) monitorado -> track parado na zona de exclusão por mais de 180s.";
-            code = "LINGERING_HIGH";
-        } else if (type === "running") {
-            title = "Pessoa correndo no corredor";
-            details = "Pessoa correndo no corredor de biscoitos em velocidade anormal.";
-            severity = "critical";
-            confidence = Math.round(90 + Math.random() * 8);
-            trigger = "Vetor de deslocamento do track ID #205 excedeu 3.5 m/s em zona interna da loja.";
-            code = "SPEED_ABNORMAL";
-        } else if (type === "fall") {
-            title = "Queda de cliente detectada";
-            details = "Emergência: Sensor de pose detectou cliente caído no chão do Corredor 2.";
-            severity = "critical";
-            confidence = Math.round(92 + Math.random() * 6);
-            trigger = "Pose estimation: Keypoints de ombros e quadril alinhados horizontalmente a < 20cm do nível do chão.";
-            code = "CUSTOMER_FALL";
-        } else if (type === "shelf") {
-            title = "Reposição de gôndola necessária";
-            details = "Operação: Nível de preenchimento da prateleira de molhos caiu abaixo de 20%.";
-            severity = "medium";
-            confidence = Math.round(80 + Math.random() * 10);
-            trigger = "Segmentação semântica: Área de prateleira mapeada como vazia excede 80% do ROI demarcado.";
-            code = "SHELF_EMPTY";
-        }
-
-        // Avoid duplicate alerts in the queue
-        const isDuplicate = alertsList.some(a => a.code === code && a.camera === camData.name);
-        if (isDuplicate) return;
-
-        const newAlert = {
-            id: nextAlertId,
-            severity: severity,
-            time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-            title: title,
-            details: details,
-            camera: camData.name,
-            confidence: confidence,
-            trigger: trigger,
-            code: code
-        };
-
-        // Add to front of alerts list
-        alertsList.unshift(newAlert);
-        nextAlertId++;
-        
-        // Update alerts layout
-        updateAlertsQueueHTML();
-        addLog(`[ALERTA DE EVENTO] Nova ocorrência: "${title}" na câmera "${camData.name}" - Confiança: ${confidence}%`, severity === 'critical' ? 'error' : (severity === 'warning' ? 'warning' : 'info'));
-        
-        // Push alert badge notification
-        const badge = document.getElementById('active-alert-badge');
-        badge.classList.add('critical');
-        setTimeout(() => badge.classList.remove('critical'), 1000);
-    }
+    // drawTrackObject and triggerNewAlert removed
 
 
     // --- TAB 2: STORE HEATMAP ENGINE ---
+    async function syncAnalyticsData() {
+        const tenantId = sessionStorage.getItem('aegiseye_tenant_id') || 'a7974ee4-329c-4c06-a57a-0377bcae242e';
+        const camSelect = document.getElementById('analytics-camera-select');
+        const selectedCam = camSelect ? camSelect.value : 'all';
+        
+        try {
+            const res = await fetch(`/api/get-analytics?tenant_id=${encodeURIComponent(tenantId)}&camera_name=${encodeURIComponent(selectedCam)}`);
+            const data = await res.json();
+            if (data.success) {
+                const stats = data.camera_stats || {};
+                const hourly = data.hourly_buckets || {};
+                
+                // Group database values
+                const countBebidas = (stats["Bebidas Finas"] || 0) + (stats["Bebidas"] || 0) + (stats["Bebidas Finas (Adega)"] || 0);
+                const countCorr1 = (stats["Corredor 1 (Mercearia)"] || 0) + (stats["Corredor 1"] || 0) + (stats["Corr. 1"] || 0);
+                const countCorr2 = (stats["Corredor 2 (Biscoitos)"] || 0) + (stats["Corredor 2"] || 0) + (stats["Corr. 2"] || 0);
+                const countCaixas = (stats["Caixa 1"] || 0) + (stats["Caixa 2 (Autoatendimento)"] || 0) + (stats["Caixa 2"] || 0) + (stats["Autoatendimento"] || 0) + (stats["Caixas"] || 0);
+
+                // Determine baseline values based on active camera selection
+                let baseBebidas = 15;
+                let baseCorr1 = 10;
+                let baseCaixas = 6;
+                let baseCorr2 = 3;
+                
+                if (selectedCam !== 'all') {
+                    baseBebidas = (selectedCam === 'Bebidas Finas' || selectedCam === 'Bebidas Finas (Adega)' || selectedCam === 'Bebidas') ? 15 : 0;
+                    baseCorr1 = (selectedCam === 'Corredor 1 (Mercearia)' || selectedCam === 'Corredor 1' || selectedCam === 'Corr. 1') ? 10 : 0;
+                    baseCorr2 = (selectedCam === 'Corredor 2 (Biscoitos)' || selectedCam === 'Corredor 2' || selectedCam === 'Corr. 2') ? 3 : 0;
+                    baseCaixas = (selectedCam === 'Caixa 1' || selectedCam === 'Caixa 2 (Autoatendimento)' || selectedCam === 'Caixa 2' || selectedCam === 'Autoatendimento' || selectedCam === 'Caixas') ? 6 : 0;
+                }
+
+                // Update baseline values with live alerts
+                window.heatmapValues = {
+                    bebidas: baseBebidas + countBebidas,
+                    corr1: baseCorr1 + countCorr1,
+                    caixas: baseCaixas + countCaixas,
+                    corr2: baseCorr2 + countCorr2
+                };
+                
+                updateCorridorBarChartHTML(window.heatmapValues);
+                updateHourlyLineChartHTML(hourly);
+                drawHeatmap();
+            }
+        } catch (err) {
+            console.error("Erro ao sincronizar dados de analytics:", err);
+        }
+    }
+    window.syncAnalyticsData = syncAnalyticsData;
+
+    function updateCorridorBarChartHTML(values) {
+        const barBebidas = document.getElementById('bar-bebidas');
+        const valBebidas = document.getElementById('val-bebidas');
+        const barCorr1 = document.getElementById('bar-corr1');
+        const valCorr1 = document.getElementById('val-corr1');
+        const barCaixas = document.getElementById('bar-caixas');
+        const valCaixas = document.getElementById('val-caixas');
+        const barCorr2 = document.getElementById('bar-corr2');
+        const valCorr2 = document.getElementById('val-corr2');
+        
+        if (!barBebidas) return;
+        
+        const maxVal = Math.max(1, values.bebidas, values.corr1, values.caixas, values.corr2);
+        const scale = 75 / maxVal;
+        
+        barBebidas.setAttribute('width', values.bebidas * scale);
+        barCorr1.setAttribute('width', values.corr1 * scale);
+        barCaixas.setAttribute('width', values.caixas * scale);
+        barCorr2.setAttribute('width', values.corr2 * scale);
+        
+        valBebidas.setAttribute('x', 15 + (values.bebidas * scale) + 3);
+        valCorr1.setAttribute('x', 15 + (values.corr1 * scale) + 3);
+        valCaixas.setAttribute('x', 15 + (values.caixas * scale) + 3);
+        valCorr2.setAttribute('x', 15 + (values.corr2 * scale) + 3);
+        
+        valBebidas.textContent = values.bebidas;
+        valCorr1.textContent = values.corr1;
+        valCaixas.textContent = values.caixas;
+        valCorr2.textContent = values.corr2;
+    }
+
+    function updateHourlyLineChartHTML(hourly) {
+        const pathEl = document.getElementById('line-chart-path');
+        const c1 = document.getElementById('circle-08h');
+        const c2 = document.getElementById('circle-12h');
+        const c3 = document.getElementById('circle-16h');
+        const c4 = document.getElementById('circle-20h');
+        const c5 = document.getElementById('circle-22h');
+        
+        if (!pathEl) return;
+        
+        const v1 = 2 + (hourly["08h"] || 0);
+        const v2 = 8 + (hourly["12h"] || 0);
+        const v3 = 15 + (hourly["16h"] || 0);
+        const v4 = 12 + (hourly["20h"] || 0);
+        const v5 = 4 + (hourly["22h"] || 0);
+        
+        const maxVal = Math.max(1, v1, v2, v3, v4, v5);
+        const mapY = (val) => 40 - (val / maxVal) * 30;
+        
+        const y1 = mapY(v1);
+        const y2 = mapY(v2);
+        const y3 = mapY(v3);
+        const y4 = mapY(v4);
+        const y5 = mapY(v5);
+        
+        if (c1) c1.setAttribute('cy', y1);
+        if (c2) c2.setAttribute('cy', y2);
+        if (c3) c3.setAttribute('cy', y3);
+        if (c4) c4.setAttribute('cy', y4);
+        if (c5) c5.setAttribute('cy', y5);
+        
+        const d = `M 10 ${y1.toFixed(1)} Q 22.5 ${(y1 - 1).toFixed(1)} 35 ${y2.toFixed(1)} T 60 ${y3.toFixed(1)} T 80 ${y4.toFixed(1)} T 95 ${y5.toFixed(1)}`;
+        pathEl.setAttribute('d', d);
+    }
+
+    function populateAnalyticsCameraDropdown() {
+        const camSelect = document.getElementById('analytics-camera-select');
+        if (camSelect) {
+            const currentSelected = camSelect.value;
+            camSelect.innerHTML = '<option value="all">Todas as Câmeras</option>';
+            cameraList.forEach(cam => {
+                const opt = document.createElement('option');
+                opt.value = cam.name;
+                opt.textContent = cam.name;
+                if (cam.name === currentSelected) {
+                    opt.selected = true;
+                }
+                camSelect.appendChild(opt);
+            });
+        }
+    }
+    window.populateAnalyticsCameraDropdown = populateAnalyticsCameraDropdown;
+
     function initHeatmapEngine() {
         btnToggleHeatmap.addEventListener('click', () => {
             isHeatmapActive = !isHeatmapActive;
@@ -1408,9 +1346,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         btnResetHeatmap.addEventListener('click', () => {
             addLog('Limpando dados acumulados do mapa de calor de incidentes.');
-            // Draw empty store layout
+            window.heatmapValues = { bebidas: 0, corr1: 0, caixas: 0, corr2: 0 };
+            updateCorridorBarChartHTML(window.heatmapValues);
             drawHeatmap(true);
         });
+
+        populateAnalyticsCameraDropdown();
+        const camSelect = document.getElementById('analytics-camera-select');
+        if (camSelect) {
+            camSelect.addEventListener('change', () => {
+                syncAnalyticsData();
+            });
+        }
     }
 
     function drawHeatmap(clear = false) {
@@ -1436,6 +1383,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillRect(500, 60, 180, 120);
         // Checkout registers
         ctx.fillRect(120, 280, 80, 60);
+        // Regs autoatendimento
         ctx.fillRect(240, 280, 80, 60);
         ctx.fillRect(360, 280, 80, 60);
 
@@ -1462,12 +1410,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // If heatmap active, draw heat circular gradients representing incident counts
         if (isHeatmapActive) {
-            // Liquor Zone (Most critical area, RED)
-            drawHeatCircle(ctx, 590, 100, 80, 'rgba(255, 0, 85, 0.5)', 'rgba(255, 0, 85, 0)');
-            // Aisle 1 (Medium, AMBER)
-            drawHeatCircle(ctx, 140, 100, 60, 'rgba(255, 159, 0, 0.4)', 'rgba(255, 159, 0, 0)');
-            // Checkout area (Low-Medium, CYAN)
-            drawHeatCircle(ctx, 280, 300, 50, 'rgba(0, 240, 255, 0.35)', 'rgba(0, 240, 255, 0)');
+            const h = window.heatmapValues || { bebidas: 15, corr1: 10, caixas: 6, corr2: 3 };
+            
+            // Liquor Zone (RED)
+            const rBebidas = Math.min(100, 50 + h.bebidas * 2.2);
+            drawHeatCircle(ctx, 590, 120, rBebidas, 'rgba(255, 0, 85, 0.5)', 'rgba(255, 0, 85, 0)');
+            
+            // Aisle 1 (AMBER)
+            const rCorr1 = Math.min(85, 40 + h.corr1 * 2.0);
+            drawHeatCircle(ctx, 140, 120, rCorr1, 'rgba(255, 159, 0, 0.42)', 'rgba(255, 159, 0, 0)');
+            
+            // Checkout area (CYAN)
+            const rCaixas = Math.min(90, 35 + h.caixas * 2.5);
+            drawHeatCircle(ctx, 280, 310, rCaixas, 'rgba(0, 240, 255, 0.35)', 'rgba(0, 240, 255, 0)');
+            
+            // Aisle 2 (PURPLE)
+            const rCorr2 = Math.min(80, 30 + h.corr2 * 3.0);
+            drawHeatCircle(ctx, 360, 120, rCorr2, 'rgba(168, 85, 247, 0.32)', 'rgba(168, 85, 247, 0)');
         }
     }
 
@@ -1532,60 +1491,109 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const newId = cameraList.length;
-        const newCam = {
-            id: newId,
-            name: camName,
-            status: "online",
-            device: camDevice,
-            rtsp: camRtsp,
-            profile: camProfile,
-            type: camName.toLowerCase().includes('caixa') ? 'checkout' : 'aisle'
-        };
+        if (editingCameraId !== null) {
+            // EDITING EXISTING CAMERA
+            const cam = cameraList.find(c => c.id === editingCameraId);
+            if (cam) {
+                cam.name = camName;
+                cam.rtsp = camRtsp;
+                cam.device = camDevice;
+                cam.profile = camProfile;
+                cam.type = camName.toLowerCase().includes('caixa') ? 'checkout' : 'aisle';
 
-        cameraList.push(newCam);
-        addLog(`[NOVA CÂMERA] Câmera "${camName}" conectada com sucesso no Edge Node via RTSP.`, 'success');
-        
-        if (cameraList.length === 1) {
-            activeCameraId = 0;
-            activeCamTitle.innerText = camName;
-            updateActiveStreams();
+                addLog(`[EDIÇÃO] Câmera "${camName}" atualizada com sucesso.`, 'success');
+                
+                // Update active camera title if currently active
+                if (activeCameraId === cam.id) {
+                    activeCamTitle.innerText = camName;
+                    updateActiveStreams();
+                }
+
+                // Sync edit with database
+                const tenantId = sessionStorage.getItem('aegiseye_tenant_id') || 'a7974ee4-329c-4c06-a57a-0377bcae242e';
+                if (tenantId && cam.db_id) {
+                    const payload = {
+                        action: 'edit_camera',
+                        id: cam.db_id,
+                        tenant_id: tenantId,
+                        name: camName,
+                        device: camDevice || 'Dispositivo Genérico',
+                        rtsp: camRtsp,
+                        profile: camProfile,
+                        type: cam.type,
+                        status: cam.status
+                    };
+                    fetch('/api/configurar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        addLog(`[Sincronização] Alterações da câmera salvas no banco de dados.`, 'info');
+                    })
+                    .catch(err => {
+                        console.error("Erro ao salvar alterações da câmera no banco:", err);
+                    });
+                }
+            }
+            cancelEditing();
+        } else {
+            // CREATING NEW CAMERA
+            const newId = cameraList.length;
+            const newCam = {
+                id: newId,
+                name: camName,
+                status: "online",
+                device: camDevice,
+                rtsp: camRtsp,
+                profile: camProfile,
+                type: camName.toLowerCase().includes('caixa') ? 'checkout' : 'aisle'
+            };
+
+            cameraList.push(newCam);
+            addLog(`[NOVA CÂMERA] Câmera "${camName}" conectada com sucesso no Edge Node via RTSP.`, 'success');
+            
+            if (cameraList.length === 1) {
+                activeCameraId = 0;
+                activeCamTitle.innerText = camName;
+                updateActiveStreams();
+            }
+
+            const tenantId = sessionStorage.getItem('aegiseye_tenant_id') || 'a7974ee4-329c-4c06-a57a-0377bcae242e';
+            if (tenantId) {
+                const payload = {
+                    action: 'add_camera',
+                    tenant_id: tenantId,
+                    name: camName,
+                    device: camDevice || 'Dispositivo Genérico',
+                    rtsp: camRtsp,
+                    profile: camProfile,
+                    type: newCam.type,
+                    status: 'online'
+                };
+                fetch('/api/configurar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    addLog(`[Sincronização] Câmera salva no banco de dados.`, 'info');
+                    const responseData = Array.isArray(data) ? data[0] : data;
+                    if (responseData && responseData.id) {
+                        newCam.db_id = responseData.id;
+                    }
+                })
+                .catch(err => {
+                    console.error("Erro de sincronização da câmera com o banco:", err);
+                });
+            }
+            cameraAddForm.reset();
         }
 
         rebuildCameraGridHTML();
         rebuildCameraSelectorsHTML();
-
-        const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
-        if (tenantId) {
-            const payload = {
-                action: 'add_camera',
-                tenant_id: tenantId,
-                name: camName,
-                device: camDevice || 'Dispositivo Genérico',
-                rtsp: camRtsp,
-                profile: camProfile,
-                type: camName.toLowerCase().includes('caixa') ? 'checkout' : 'aisle',
-                status: 'online'
-            };
-            fetch('/api/configurar', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
-            .then(res => res.json())
-            .then(data => {
-                addLog(`[Sincronização] Câmera salva no banco de dados.`, 'info');
-                const responseData = Array.isArray(data) ? data[0] : data;
-                if (responseData && responseData.id) {
-                    newCam.db_id = responseData.id;
-                }
-            })
-            .catch(err => {
-                console.error("Erro de sincronização da câmera com o banco:", err);
-            });
-        }
-
-        cameraAddForm.reset();
     });
 
     // Submit handler for Batch DVR Form
@@ -1713,6 +1721,57 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function editCamera(id) {
+        const cam = cameraList.find(c => c.id === id);
+        if (!cam) return;
+
+        editingCameraId = id;
+
+        // Fill form fields
+        document.getElementById('cam-name').value = cam.name;
+        document.getElementById('cam-rtsp').value = cam.rtsp;
+        document.getElementById('cam-device').value = cam.device;
+        document.getElementById('cam-profile').value = cam.profile;
+
+        // Change card title and button text
+        const cardTitle = document.querySelector('.camera-add-card h3');
+        if (cardTitle) cardTitle.innerText = 'Editar Câmera';
+
+        const btnAdd = document.getElementById('btn-add-camera');
+        if (btnAdd) {
+            btnAdd.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Salvar Alterações`;
+        }
+
+        // Add a Cancelar button next to or below the submit button if it doesn't exist
+        let cancelBtn = document.getElementById('btn-cancel-edit');
+        if (!cancelBtn) {
+            cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.id = 'btn-cancel-edit';
+            cancelBtn.className = 'action-btn w-full btn-outline';
+            cancelBtn.style.marginTop = '10px';
+            cancelBtn.innerText = 'Cancelar Edição';
+            cancelBtn.addEventListener('click', cancelEditing);
+            document.getElementById('camera-add-form').appendChild(cancelBtn);
+        }
+    }
+
+    function cancelEditing() {
+        editingCameraId = null;
+        document.getElementById('camera-add-form').reset();
+
+        const cardTitle = document.querySelector('.camera-add-card h3');
+        if (cardTitle) cardTitle.innerText = 'Adicionar Câmeras';
+
+        const btnAdd = document.getElementById('btn-add-camera');
+        if (btnAdd) {
+            btnAdd.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Conectar Câmera`;
+        }
+
+        const cancelBtn = document.getElementById('btn-cancel-edit');
+        if (cancelBtn) cancelBtn.remove();
+    }
+
     function rebuildCameraGridHTML() {
         cameraGrid.innerHTML = '';
         cameraTotalCountBadge.innerText = `${cameraList.length} Câmeras`;
@@ -1738,11 +1797,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     <p><strong>Modo IA:</strong> ${cam.profile}</p>
                 </div>
                 <div class="camera-setup-actions">
-                    <button class="action-btn btn-sm btn-outline">Editar</button>
+                    <button class="action-btn btn-sm btn-outline" data-edit-id="${cam.id}">Editar</button>
                     <button class="action-btn btn-sm btn-danger-outline" data-remove-id="${cam.id}">Remover</button>
                 </div>
             `;
             cameraGrid.appendChild(card);
+        });
+
+        // Attach listeners for editing
+        document.querySelectorAll('button[data-edit-id]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const id = parseInt(e.target.getAttribute('data-edit-id'));
+                editCamera(id);
+            });
         });
 
         // Attach listeners for removal
@@ -1798,7 +1865,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (statusIndicator && statusDot && statusText) {
             statusIndicator.style.display = 'flex';
             const isOnline = camData.status === 'online';
-            statusDot.style.backgroundColor = isOnline ? '#10b981' : '#f59e0b';
+            statusDot.style.backgroundColor = isOnline ? '#10b981' : '#ef4444';
             statusText.innerText = isOnline ? 'ONLINE' : 'OFFLINE (SIMULAÇÃO)';
         }
     }
@@ -1887,17 +1954,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     data.alerts.forEach(dbAlert => {
                         const exists = alertsList.some(a => a.db_id === dbAlert.id);
                         if (!exists) {
-                            const alertTime = dbAlert.created_at ? new Date(dbAlert.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                            const alertTime = dbAlert.timestamp ? new Date(dbAlert.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : (dbAlert.time || new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
                             alertsList.unshift({
                                 id: nextAlertId++,
                                 db_id: dbAlert.id,
                                 severity: dbAlert.severity,
                                 time: alertTime,
+                                timestamp: dbAlert.timestamp || null,
                                 title: dbAlert.title,
-                                camera: dbAlert.camera_name || "Mundo Infantil",
-                                confidence: dbAlert.confidence,
+                                camera: dbAlert.camera_name || dbAlert.camera || "Câmera Geral",
+                                confidence: dbAlert.confidence || dbAlert.confidence_score || 90,
                                 details: dbAlert.details || "Alerta detectado por processador IA local.",
-                                trigger: dbAlert.trigger_type || "Detecção automática.",
+                                trigger: dbAlert.trigger || dbAlert.risk_type || "Detecção automática.",
                                 code: dbAlert.code || "DB_ALERT",
                                 video_url: dbAlert.video_url || null
                             });
@@ -1909,9 +1977,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
                     });
-                    if (updated || (alertsList.length > 0 && statsAlertsCount === 0)) {
+                    if (updated || (alertsList.length > 0 && statsAlertsCount === 0) || statsAlertsCount !== data.today_count) {
+                        statsAlertsCount = (data.today_count !== undefined) ? data.today_count : alertsList.length;
                         updateAlertsQueueHTML();
-                        statsAlertsCount = alertsList.length;
                         statsSavedValue = alertsList.filter(a => a.severity === 'critical').length * 250 + alertsList.filter(a => a.severity === 'warning').length * 100;
                         updateStatsHeader();
                     }

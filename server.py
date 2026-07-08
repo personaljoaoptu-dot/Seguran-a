@@ -129,6 +129,8 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             query_params = urllib.parse.parse_qs(parsed_url.query)
             tenant_id = query_params.get('tenant_id', [''])[0].strip()
             user_id = query_params.get('user_id', [''])[0].strip()
+            if user_id.lower() in ['none', 'undefined', 'null', '']:
+                user_id = ''
             if not tenant_id and not user_id:
                 self.send_error_response("tenant_id ou user_id é obrigatório.")
                 return
@@ -136,31 +138,32 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                if user_id:
+                if tenant_id:
                     cursor.execute("""
-                        SELECT created_at, severity, title, camera_name, confidence, id, details, trigger_type, video_url 
+                        SELECT timestamp, severity, title, camera_name, confidence_score, id, details, risk_type, video_url 
                         FROM public.alertas 
-                        WHERE user_id = %s
-                        ORDER BY created_at DESC 
-                        LIMIT 20
-                    """, (user_id,))
+                        WHERE tenant_id = %s AND status = 'active'
+                        ORDER BY timestamp DESC 
+                        LIMIT 50
+                    """, (tenant_id,))
                 else:
                     cursor.execute("""
-                        SELECT created_at, severity, title, camera_name, confidence, id, details, trigger_type, video_url 
+                        SELECT timestamp, severity, title, camera_name, confidence_score, id, details, risk_type, video_url 
                         FROM public.alertas 
-                        WHERE tenant_id = %s
-                        ORDER BY created_at DESC 
-                        LIMIT 20
-                    """, (tenant_id,))
+                        WHERE user_id = %s AND status = 'active'
+                        ORDER BY timestamp DESC 
+                        LIMIT 50
+                    """, (user_id,))
                 alerts = []
                 for row in cursor.fetchall():
-                    created_at = row[0]
-                    time_str = created_at.strftime("%H:%M")
+                    timestamp_val = row[0]
+                    time_str = timestamp_val.strftime("%H:%M")
                     severity = row[1]
                     label = "CRÍTICO" if severity == "critical" else ("ATENÇÃO" if severity == "warning" else "MÉDIO")
                     alerts.append({
                         "id": str(row[5]),
                         "time": time_str,
+                        "timestamp": timestamp_val.isoformat() if timestamp_val else None,
                         "severity": severity,
                         "label": label,
                         "title": row[2],
@@ -170,12 +173,126 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         "trigger": row[7] or "Detecção automática.",
                         "video_url": row[8] if len(row) > 8 else None
                     })
+                # Count today's total alerts
+                if tenant_id:
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM public.alertas 
+                        WHERE tenant_id = %s AND timestamp >= CURRENT_DATE
+                    """, (tenant_id,))
+                else:
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM public.alertas 
+                        WHERE user_id = %s AND timestamp >= CURRENT_DATE
+                    """, (user_id,))
+                today_count = cursor.fetchone()[0]
+                
                 cursor.close()
-                self.send_success_response({"success": True, "alerts": alerts})
+                self.send_success_response({"success": True, "alerts": alerts, "today_count": today_count})
             except Exception as e:
                 print(f"[ERROR] Falha ao carregar alertas para o tenant {tenant_id}: {e}")
                 traceback.print_exc()
                 self.send_error_response(f"Erro ao carregar alertas: {e}")
+            finally:
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+            return
+        elif clean_path == '/api/get-analytics':
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            tenant_id = query_params.get('tenant_id', [''])[0].strip()
+            camera_name = query_params.get('camera_name', [''])[0].strip()
+            if not tenant_id:
+                self.send_error_response("tenant_id é obrigatório.")
+                return
+            conn = None
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Fetch counts of alerts in last 24h grouped by camera_name
+                if camera_name and camera_name.lower() != 'all':
+                    cursor.execute("""
+                        SELECT camera_name, COUNT(*) 
+                        FROM public.alertas 
+                        WHERE tenant_id = %s AND camera_name = %s AND timestamp >= NOW() - INTERVAL '24 HOURS'
+                        GROUP BY camera_name
+                    """, (tenant_id, camera_name))
+                else:
+                    cursor.execute("""
+                        SELECT camera_name, COUNT(*) 
+                        FROM public.alertas 
+                        WHERE tenant_id = %s AND timestamp >= NOW() - INTERVAL '24 HOURS'
+                        GROUP BY camera_name
+                    """, (tenant_id,))
+                
+                camera_stats = {}
+                for row in cursor.fetchall():
+                    cam_name = row[0] or "Geral"
+                    camera_stats[cam_name] = row[1]
+                    
+                # If no last 24 hours exists, fallback to all active alerts
+                if not camera_stats:
+                    if camera_name and camera_name.lower() != 'all':
+                        cursor.execute("""
+                            SELECT camera_name, COUNT(*) 
+                            FROM public.alertas 
+                            WHERE tenant_id = %s AND camera_name = %s
+                            GROUP BY camera_name
+                        """, (tenant_id, camera_name))
+                    else:
+                        cursor.execute("""
+                            SELECT camera_name, COUNT(*) 
+                            FROM public.alertas 
+                            WHERE tenant_id = %s
+                            GROUP BY camera_name
+                        """, (tenant_id,))
+                    for row in cursor.fetchall():
+                        cam_name = row[0] or "Geral"
+                        camera_stats[cam_name] = row[1]
+                
+                # Hourly distribution (08h, 12h, 16h, 20h, 22h buckets)
+                if camera_name and camera_name.lower() != 'all':
+                    cursor.execute("""
+                        SELECT EXTRACT(HOUR FROM timestamp) as hr, COUNT(*)
+                        FROM public.alertas
+                        WHERE tenant_id = %s AND camera_name = %s AND timestamp >= CURRENT_DATE
+                        GROUP BY hr
+                    """, (tenant_id, camera_name))
+                else:
+                    cursor.execute("""
+                        SELECT EXTRACT(HOUR FROM timestamp) as hr, COUNT(*)
+                        FROM public.alertas
+                        WHERE tenant_id = %s AND timestamp >= CURRENT_DATE
+                        GROUP BY hr
+                    """, (tenant_id,))
+                
+                hourly_raw = {}
+                for row in cursor.fetchall():
+                    hr = int(row[0])
+                    hourly_raw[hr] = row[1]
+                    
+                cursor.close()
+                
+                # Buckets mapping
+                hourly_buckets = {
+                    "08h": sum(v for k, v in hourly_raw.items() if k < 10),
+                    "12h": sum(v for k, v in hourly_raw.items() if 10 <= k < 14),
+                    "16h": sum(v for k, v in hourly_raw.items() if 14 <= k < 18),
+                    "20h": sum(v for k, v in hourly_raw.items() if 18 <= k < 21),
+                    "22h": sum(v for k, v in hourly_raw.items() if k >= 21)
+                }
+                
+                self.send_success_response({
+                    "success": True,
+                    "camera_stats": camera_stats,
+                    "hourly_buckets": hourly_buckets
+                })
+            except Exception as e:
+                print(f"[ERROR] Falha ao carregar analytics para o tenant {tenant_id}: {e}")
+                traceback.print_exc()
+                self.send_error_response(f"Erro ao carregar analytics: {e}")
             finally:
                 if conn is not None:
                     try:
@@ -618,6 +735,30 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_success_response({"success": True, "message": "Heartbeat received."})
             except Exception as e:
                 self.send_error_response(f"Erro ao processar heartbeat: {e}")
+        elif self.path == '/api/resolve-alert':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                alert_id = payload.get('alert_id', '').strip()
+                if not alert_id:
+                    self.send_error_response("alert_id é obrigatório.")
+                    return
+                
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE public.alertas 
+                    SET status = 'resolved'
+                    WHERE id = %s;
+                """, (alert_id,))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                self.send_success_response({"success": True, "message": "Alerta resolvido com sucesso."})
+            except Exception as e:
+                print(f"[ERROR] Falha ao resolver alerta: {e}")
+                self.send_error_response(f"Erro ao resolver alerta: {e}")
         else:
             self.send_error(404, "Route Not Found")
 

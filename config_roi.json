@@ -2,6 +2,7 @@
     "camera_rois": {
         "default": {
             "enabled": true,
+            "camera_type": "internal",
             "polygon": [
                 [0.10, 0.10],
                 [0.90, 0.10],
@@ -11,6 +12,7 @@
         },
         "79f0f0a6-d388-49aa-8ad6-b7645da973ce": {
             "enabled": true,
+            "camera_type": "external",
             "polygon": [
                 [0.05, 0.05],
                 [0.95, 0.05],
