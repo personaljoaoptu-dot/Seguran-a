@@ -2349,4 +2349,243 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Expose loadSettings globally so navigation click triggers it
     window.loadSettings = loadSettings;
+
+    // --- REALTIME SSE ALERTS & AUDIO SYNTHESIZER ---
+    function playAlertChime(severity) {
+        try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            const ctx = new AudioContext();
+            
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            
+            const now = ctx.currentTime;
+            if (severity === 'critical') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(880, now); // A5
+                osc.frequency.exponentialRampToValueAtTime(440, now + 0.3); // A4
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, now); // D5
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            }
+        } catch (e) {
+            console.log("Áudio de alerta indisponível ou bloqueado pelo navegador:", e);
+        }
+    }
+
+    function showToastNotification(alert) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        
+        const toast = document.createElement('div');
+        toast.className = `toast-item ${alert.severity || 'critical'}`;
+        toast.innerHTML = `
+            <div style="font-size: 20px;">🚨</div>
+            <div style="flex: 1;">
+                <div style="font-weight: 700; font-size: 13px; color: #fff; margin-bottom: 2px;">${alert.title || 'Alerta de Segurança'}</div>
+                <div style="font-size: 11px; color: var(--slate-300);">${alert.camera || 'Câmera'} • ${alert.trigger || 'Detecção de Risco'}</div>
+            </div>
+            <button onclick="this.parentElement.remove()" style="background: none; border: none; color: var(--slate-400); cursor: pointer; font-size: 16px;">&times;</button>
+        `;
+        
+        container.appendChild(toast);
+        setTimeout(() => {
+            if (toast.parentElement) toast.remove();
+        }, 6000);
+    }
+
+    function initRealtimeAlertsStream() {
+        if (!window.EventSource) return;
+        const es = new EventSource('/api/stream-alerts');
+        
+        es.onmessage = function(e) {
+            try {
+                const data = JSON.parse(e.data);
+                if (data && data.title) {
+                    playAlertChime(data.severity);
+                    showToastNotification(data);
+                    
+                    state.alerts.unshift(data);
+                    updateAlertsQueueHTML();
+                    
+                    const countElem = document.getElementById('stats-alerts-count');
+                    if (countElem) {
+                        const current = parseInt(countElem.innerText) || 0;
+                        countElem.innerText = current + 1;
+                    }
+                }
+            } catch (err) {
+                console.error("Erro ao processar mensagem SSE:", err);
+            }
+        };
+        
+        es.onerror = function() {
+            console.log("SSE re-conectando...");
+        };
+    }
+    initRealtimeAlertsStream();
+
+    // --- VIDEO EVIDENCE PLAYBACK MODAL ---
+    window.openEvidenceVideoModal = function(url, camera, details, confidence) {
+        const modal = document.getElementById('evidence-modal') || document.getElementById('alert-video-modal');
+        const player = document.getElementById('modal-evidence-video');
+        
+        if (player && url) {
+            player.src = url;
+            player.play().catch(e => console.log("Autoplay bloqueado:", e));
+        }
+        
+        const camElem = document.getElementById('modal-alert-camera');
+        const detElem = document.getElementById('modal-alert-details');
+        const confElem = document.getElementById('modal-alert-confidence');
+        
+        if (camElem) camElem.innerText = camera || 'Câmera Geral';
+        if (detElem) detElem.innerText = details || 'Detecção de comportamento suspeito.';
+        if (confElem) confElem.innerText = (confidence || 90) + '%';
+        
+        if (modal) modal.style.display = 'flex';
+    };
+
+    // --- ROI CANVAS BUILDER INTERACTIVE TOOL ---
+    let roiPoints = [];
+    let roiSelectedCam = 'default';
+
+    window.openRoiModal = function(camId) {
+        roiSelectedCam = camId || 'default';
+        roiPoints = [];
+        const modal = document.getElementById('roi-canvas-modal');
+        const bgImg = document.getElementById('roi-bg-img');
+        const canvas = document.getElementById('roi-canvas');
+        
+        if (modal && bgImg && canvas) {
+            bgImg.src = `http://${getStreamHost(camId)}:8082/snapshot?camera_id=${camId}&t=${Date.now()}`;
+            bgImg.onload = function() {
+                canvas.width = bgImg.clientWidth;
+                canvas.height = bgImg.clientHeight;
+                redrawRoiCanvas();
+            };
+            modal.style.display = 'flex';
+        }
+    };
+
+    window.closeRoiModal = function() {
+        const modal = document.getElementById('roi-canvas-modal');
+        if (modal) modal.style.display = 'none';
+    };
+
+    function redrawRoiCanvas() {
+        const canvas = document.getElementById('roi-canvas');
+        const bgImg = document.getElementById('roi-bg-img');
+        const info = document.getElementById('roi-status-info');
+        if (!canvas || !bgImg) return;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        if (info) info.innerText = `${roiPoints.length} pontos marcados`;
+        
+        if (roiPoints.length === 0) return;
+        
+        ctx.strokeStyle = '#00f0ff';
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.2)';
+        ctx.lineWidth = 2;
+        
+        ctx.beginPath();
+        ctx.moveTo(roiPoints[0].x, roiPoints[0].y);
+        for (let i = 1; i < roiPoints.length; i++) {
+            ctx.lineTo(roiPoints[i].x, roiPoints[i].y);
+        }
+        if (roiPoints.length > 2) ctx.closePath();
+        ctx.stroke();
+        ctx.fill();
+        
+        roiPoints.forEach((pt) => {
+            ctx.fillStyle = '#ff0055';
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+
+    const roiCanvas = document.getElementById('roi-canvas');
+    if (roiCanvas) {
+        roiCanvas.addEventListener('click', function(e) {
+            const rect = roiCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            roiPoints.push({ x, y });
+            redrawRoiCanvas();
+        });
+    }
+
+    window.clearRoiPoints = function() {
+        roiPoints = [];
+        redrawRoiCanvas();
+    };
+
+    window.saveRoiPolygon = function() {
+        const bgImg = document.getElementById('roi-bg-img');
+        if (!bgImg || roiPoints.length < 3) {
+            showToast("Marque pelo menos 3 pontos para formar uma zona de risco.", "error");
+            return;
+        }
+        
+        const normalizedPoly = roiPoints.map(pt => [
+            parseFloat((pt.x / bgImg.clientWidth).toFixed(3)),
+            parseFloat((pt.y / bgImg.clientHeight).toFixed(3))
+        ]);
+        
+        fetch('/api/save-roi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                camera_id: roiSelectedCam,
+                polygon: normalizedPoly
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showToast("Região de Interesse (ROI) salva com sucesso!");
+                closeRoiModal();
+            } else {
+                showToast("Erro ao salvar ROI: " + data.message, "error");
+            }
+        })
+        .catch(err => showToast("Erro de comunicação ao salvar ROI.", "error"));
+    };
+
+    // --- EXECUTIVE REPORT GENERATOR ---
+    window.exportExecutiveReport = function() {
+        const tenantName = sessionStorage.getItem('aegiseye_tenant_name') || 'Empresa Cliente';
+        const dateStr = new Date().toLocaleDateString('pt-BR');
+        
+        let csvContent = "data:text/csv;charset=utf-8,";
+        csvContent += "ID,Horario,Severidade,Titulo,Camera,Confianca,Evidencia\n";
+        
+        state.alerts.forEach(a => {
+            csvContent += `"${a.id}","${a.time}","${a.severity}","${a.title}","${a.camera}","${a.confidence}%","${a.video_url || 'N/A'}"\n`;
+        });
+        
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `Relatorio_AegisEye_${tenantName.replace(/\s+/g, '_')}_${dateStr.replace(/\//g, '-')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showToast("Relatório Executivo exportado em CSV com sucesso!");
+    };
 });

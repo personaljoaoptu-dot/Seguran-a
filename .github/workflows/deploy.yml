@@ -1,0 +1,33 @@
+name: AegisEye CI/CD Remote Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to Production Cloud (app.aegiseye.com.br)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Deploy Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install paramiko
+
+      - name: Execute Remote Deployment
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+        run: |
+          python scripts/deploy_remote.py

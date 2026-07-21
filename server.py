@@ -8,9 +8,27 @@ import bcrypt
 import uuid
 import traceback
 import time
+import threading
 
 # In-memory registry for Edge Node heartbeats (tenant_id -> timestamp)
 active_edge_nodes = {}
+
+# Active SSE client subscribers for real-time alert push
+sse_subscribers = set()
+sse_lock = threading.Lock()
+
+def broadcast_alert_event(alert_data):
+    with sse_lock:
+        dead = set()
+        payload = f"data: {json.dumps(alert_data)}\n\n".encode('utf-8')
+        for wfile in list(sse_subscribers):
+            try:
+                wfile.write(payload)
+                wfile.flush()
+            except Exception:
+                dead.add(wfile)
+        for w in dead:
+            sse_subscribers.discard(w)
 
 PORT = 8000
 
@@ -362,6 +380,66 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                         pass
             return
             
+        elif clean_path == '/api/stream-alerts':
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Connection', 'keep-alive')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            
+            with sse_lock:
+                sse_subscribers.add(self.wfile)
+            print(f"[SSE] Cliente conectado para alertas ao vivo. Inscritos: {len(sse_subscribers)}")
+            
+            try:
+                while True:
+                    time.sleep(15)
+                    self.wfile.write(b": heartbeat\n\n")
+                    self.wfile.flush()
+            except Exception:
+                pass
+            finally:
+                with sse_lock:
+                    sse_subscribers.discard(self.wfile)
+                print(f"[SSE] Cliente desconectado. Restantes: {len(sse_subscribers)}")
+            return
+
+        elif clean_path == '/api/cameras/roi':
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            config_path = os.path.join(script_dir, 'config_roi.json')
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        roi_data = json.load(f)
+                    self.send_success_response({"success": True, "rois": roi_data})
+                except Exception as e:
+                    self.send_error_response(f"Erro ao ler ROI: {e}")
+            else:
+                self.send_success_response({"success": True, "rois": {}})
+            return
+
+        elif clean_path.startswith('/evidencias/'):
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            filename = os.path.basename(clean_path)
+            file_path = os.path.join(script_dir, 'evidencias', filename)
+            if os.path.exists(file_path):
+                self.send_response(200)
+                self.send_header('Content-Type', 'video/mp4')
+                self.send_header('Accept-Ranges', 'bytes')
+                self.send_header('Content-Length', str(os.path.getsize(file_path)))
+                self.send_header('Cache-Control', 'public, max-age=86400')
+                self.end_headers()
+                try:
+                    with open(file_path, 'rb') as f:
+                        self.wfile.write(f.read())
+                except Exception:
+                    pass
+                return
+            else:
+                self.send_error(404, "Vídeo de evidência não encontrado.")
+                return
+
         # Default index resolution
         if clean_path == '/' or clean_path == '':
             self.path = '/index.html'
@@ -759,6 +837,88 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 print(f"[ERROR] Falha ao resolver alerta: {e}")
                 self.send_error_response(f"Erro ao resolver alerta: {e}")
+
+        elif self.path == '/api/trigger-alert':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                tenant_id = payload.get('tenant_id', 'a7974ee4-329c-4c06-a57a-0377bcae242e')
+                user_id = payload.get('user_id', '')
+                title = payload.get('title', 'Alerta de Segurança')
+                severity = payload.get('severity', 'critical')
+                camera_name = payload.get('camera_name', 'Câmera Geral')
+                confidence = int(payload.get('confidence', 90))
+                details = payload.get('details', 'Detecção comportamental em tempo real')
+                risk_type = payload.get('risk_type', 'Detecção automática')
+                video_url = payload.get('video_url', '')
+
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO public.alertas 
+                    (tenant_id, user_id, title, severity, camera_name, confidence_score, details, risk_type, video_url, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'active')
+                    RETURNING id, timestamp;
+                """, (tenant_id, user_id if user_id else None, title, severity, camera_name, confidence, details, risk_type, video_url))
+                row = cursor.fetchone()
+                alert_id = str(row[0])
+                timestamp_val = row[1]
+                conn.commit()
+                cursor.close()
+                conn.close()
+
+                alert_evt = {
+                    "id": alert_id,
+                    "title": title,
+                    "severity": severity,
+                    "label": "CRÍTICO" if severity == "critical" else ("ATENÇÃO" if severity == "warning" else "MÉDIO"),
+                    "camera": camera_name,
+                    "confidence": confidence,
+                    "details": details,
+                    "trigger": risk_type,
+                    "video_url": video_url,
+                    "time": timestamp_val.strftime("%H:%M") if timestamp_val else time.strftime("%H:%M"),
+                    "timestamp": timestamp_val.isoformat() if timestamp_val else None
+                }
+                broadcast_alert_event(alert_evt)
+                self.send_success_response({"success": True, "alert": alert_evt})
+            except Exception as e:
+                print(f"[ERROR] Falha ao disparar alerta: {e}")
+                self.send_error_response(f"Erro ao disparar alerta: {e}")
+
+        elif self.path == '/api/save-roi':
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length)
+            try:
+                payload = json.loads(post_data.decode('utf-8'))
+                camera_key = payload.get('camera_id', 'default')
+                polygon = payload.get('polygon', [])
+                
+                script_dir = os.path.dirname(os.path.abspath(__file__))
+                config_path = os.path.join(script_dir, 'config_roi.json')
+                
+                config_data = {"camera_rois": {}}
+                if os.path.exists(config_path):
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config_data = json.load(f)
+                
+                if "camera_rois" not in config_data:
+                    config_data["camera_rois"] = {}
+                
+                config_data["camera_rois"][camera_key] = {
+                    "enabled": True,
+                    "camera_type": "internal",
+                    "polygon": polygon
+                }
+                
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config_data, f, indent=4)
+                    
+                self.send_success_response({"success": True, "message": "ROI salva com sucesso."})
+            except Exception as e:
+                print(f"[ERROR] Falha ao salvar ROI: {e}")
+                self.send_error_response(f"Erro ao salvar ROI: {e}")
         else:
             self.send_error(404, "Route Not Found")
 
