@@ -7,6 +7,8 @@ def deploy():
         "frontend/index.html",
         "frontend/login.html",
         "frontend/activate.html",
+        "frontend/privacy.html",
+        "frontend/terms.html",
         "frontend/style.css",
         "frontend/app.js",
         "server.py",

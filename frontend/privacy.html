@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Política de Privacidade & LGPD — AegisEye AI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=16">
+    <style>
+        body {
+            background-color: var(--slate-950);
+            color: var(--slate-200);
+            font-family: var(--font-body);
+            padding: 40px 20px;
+            line-height: 1.6;
+        }
+        .privacy-container {
+            max-width: 850px;
+            margin: 0 auto;
+            background: var(--slate-900);
+            border: 1px solid var(--slate-800);
+            border-radius: var(--radius-lg);
+            padding: 40px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        h1 {
+            font-size: 28px;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: var(--cyan-500);
+            font-size: 14px;
+            margin-bottom: 30px;
+            font-weight: 500;
+        }
+        h2 {
+            font-size: 18px;
+            color: var(--cyan-400);
+            margin-top: 25px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid var(--slate-800);
+            padding-bottom: 6px;
+        }
+        p, li {
+            font-size: 14px;
+            color: var(--slate-300);
+            margin-bottom: 12px;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        .badge-lgpd {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(0, 230, 118, 0.1);
+            border: 1px solid var(--green-500);
+            color: var(--green-500);
+            padding: 6px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        .btn-back {
+            display: inline-block;
+            margin-top: 30px;
+            padding: 10px 20px;
+            background: var(--slate-800);
+            color: #fff;
+            text-decoration: none;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .btn-back:hover {
+            background: var(--slate-700);
+        }
+    </style>
+</head>
+<body>
+    <div class="privacy-container">
+        <div class="badge-lgpd">
+            🛡️ 100% LGPD COMPLIANT — Lei Geral de Proteção de Dados (Lei nº 13.709/2018)
+        </div>
+        <h1>Política de Privacidade e Proteção de Dados</h1>
+        <p class="subtitle">AegisEye AI — Plataforma de Prevenção Inteligente de Perdas</p>
+
+        <h2>1. Compromisso com a Privacidade</h2>
+        <p>A <strong>AegisEye AI</strong> prioriza a privacidade, a conformidade jurídica e a segurança das informações de nossos clientes e dos frequentadores dos estabelecimentos atendidos. Nossa tecnologia de análise comportamental por Visão Computacional opera sob estritos princípios de privacidade por design (<em>Privacy by Design</em>).</p>
+
+        <h2>2. Ausência de Reconhecimento Biométrico Facial</h2>
+        <p>Esclarecemos categoricamente que a plataforma AegisEye AI <strong>NÃO realiza reconhecimento facial, identificação biométrica nem categorização por traços genéticos ou biológicos</strong>. A IA processa exclusivamente padronização de vetores de movimento, contagem de permanência (<em>loitering</em>) e dinâmica espacial sobre os fluxos de vídeo.</p>
+
+        <h2>3. Coleta e Processamento de Dados</h2>
+        <p>Os dados processados restringem-se a:</p>
+        <ul>
+            <li><strong>Registros de Eventos e Incidentes:</strong> Horário, câmera de origem, nível de severidade e estimativa de perdas evitadas.</li>
+            <li><strong>Clipe de Evidência Temporário:</strong> Vídeos curtos (10 a 15 segundos) gravados no momento da suspeita para verificação pela equipe interna de prevenção de perdas. Os arquivos expiram e são sobrescritos automaticamente a cada 48 horas.</li>
+            <li><strong>Dados de Acesso dos Clientes SaaS:</strong> Nome, e-mail comercial, CNPJ/CPF e credenciais encriptadas por algoritmo bcrypt.</li>
+        </ul>
+
+        <h2>4. Armazenamento e Criptografia</h2>
+        <p>Todos os dados de tráfego entre os nós locais (Edge Nodes) e nosso Dashboard na nuvem utilizam protocolos criptografados HTTPS/TLS 1.3 e conexões isoladas por identificador multitenant (<code>tenant_id</code>).</p>
+
+        <h2>5. Direitos do Titular e Encarregado de Dados (DPO)</h2>
+        <p>Em conformidade com a LGPD, o cliente tem direito de solicitar a exclusão de seus registros de dados a qualquer momento pelo suporte técnico.</p>
+        <p><strong>Contato do Encarregado de Dados (DPO):</strong> dpo@aegiseye.com.br</p>
+
+        <a href="index.html" class="btn-back">← Voltar ao Dashboard</a>
+    </div>
+</body>
+</html>
