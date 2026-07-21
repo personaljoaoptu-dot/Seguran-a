@@ -270,8 +270,8 @@ if __name__ == '__main__':
                 
             threading.Thread(target=start_http, daemon=True).start()
             
-            # Start AI Inference Thread (YOLO detection)
-            threading.Thread(target=pipeline_module.ai_inference_loop, args=(False,), daemon=True).start()
+            # Start AI Camera Manager & Inference Threads
+            threading.Thread(target=pipeline_module.camera_manager_loop, args=(True,), daemon=True).start()
             
             # Start Heartbeat Thread
             threading.Thread(target=pipeline_module.heartbeat_loop, daemon=True).start()

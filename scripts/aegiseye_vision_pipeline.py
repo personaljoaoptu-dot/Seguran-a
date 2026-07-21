@@ -902,8 +902,14 @@ class CameraStreamHandler(BaseHTTPRequestHandler):
                     with frame_lock:
                         if parsed_url.path == '/stream_ai':
                             frame_data = latest_ai_frames.get(camera_id) or latest_clean_frames.get(camera_id)
+                            if not frame_data and latest_ai_frames:
+                                frame_data = next(iter(latest_ai_frames.values()), None)
+                            if not frame_data and latest_clean_frames:
+                                frame_data = next(iter(latest_clean_frames.values()), None)
                         else:
                             frame_data = latest_clean_frames.get(camera_id)
+                            if not frame_data and latest_clean_frames:
+                                frame_data = next(iter(latest_clean_frames.values()), None)
                             
                     if frame_data is None:
                         frame = np.zeros((360, 640, 3), dtype=np.uint8)
