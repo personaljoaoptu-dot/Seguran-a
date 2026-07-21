@@ -282,5 +282,5 @@ if __name__ == '__main__':
         resizable=True
     )
     
-    # Run application loop with debug mode enabled (Press F12 to inspect)
-    webview.start(debug=True)
+    # Run application loop
+    webview.start(debug=False)

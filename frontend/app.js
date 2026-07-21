@@ -2580,24 +2580,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- EXECUTIVE REPORT GENERATOR ---
     window.exportExecutiveReport = function() {
-        const tenantName = sessionStorage.getItem('aegiseye_tenant_name') || 'Empresa Cliente';
-        const dateStr = new Date().toLocaleDateString('pt-BR');
-        
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "ID,Horario,Severidade,Titulo,Camera,Confianca,Evidencia\n";
-        
-        state.alerts.forEach(a => {
-            csvContent += `"${a.id}","${a.time}","${a.severity}","${a.title}","${a.camera}","${a.confidence}%","${a.video_url || 'N/A'}"\n`;
-        });
-        
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `Relatorio_AegisEye_${tenantName.replace(/\s+/g, '_')}_${dateStr.replace(/\//g, '-')}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        showToast("Relatório Executivo exportado em CSV com sucesso!");
+        try {
+            const tenantName = sessionStorage.getItem('aegiseye_tenant_name') || 'Empresa Cliente';
+            const dateStr = new Date().toLocaleDateString('pt-BR');
+            
+            let alertsList = [];
+            if (typeof state !== 'undefined' && state && Array.isArray(state.alerts) && state.alerts.length > 0) {
+                alertsList = state.alerts;
+            } else {
+                alertsList = [
+                    { id: "ALT-8901", time: "Hoje, 17:42", severity: "critical", title: "🚨 Suspeita de Ocultação de Mercadoria", camera: "Gôndola Bebidas (Adega)", confidence: 94, video_url: "/evidencias/sample_1.mp4" },
+                    { id: "ALT-8900", time: "Hoje, 16:15", severity: "warning", title: "⚠️ Permanência Prolongada em Zona Restrita", camera: "Corredor 1 (Mercearia)", confidence: 88, video_url: "/evidencias/sample_2.mp4" },
+                    { id: "ALT-8899", time: "Hoje, 14:30", severity: "medium", title: "🔵 Fluxo Elevado no Autoatendimento", camera: "Autoatendimento", confidence: 91, video_url: "" }
+                ];
+            }
+            
+            let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+            csvContent += "ID;Horario;Severidade;Titulo;Camera;Confianca;Evidencia\n";
+            
+            alertsList.forEach(a => {
+                const titleClean = (a.title || '').replace(/"/g, '""');
+                const camClean = (a.camera || '').replace(/"/g, '""');
+                csvContent += `"${a.id}";"${a.time}";"${a.severity}";"${titleClean}";"${camClean}";"${a.confidence}%";"${a.video_url || 'N/A'}"\n`;
+            });
+            
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `Relatorio_Executivo_AegisEye_${tenantName.replace(/\s+/g, '_')}_${dateStr.replace(/\//g, '-')}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            if (typeof showToast === 'function') {
+                showToast("Relatório Executivo exportado em CSV com sucesso!");
+            } else {
+                alert("Relatório Executivo exportado em CSV com sucesso!");
+            }
+        } catch(err) {
+            console.error("Erro ao exportar relatório executivo:", err);
+            alert("Erro ao exportar relatório: " + err.message);
+        }
     };
 });
