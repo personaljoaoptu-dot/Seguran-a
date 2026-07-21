@@ -17,7 +17,43 @@ active_edge_nodes = {}
 sse_subscribers = set()
 sse_lock = threading.Lock()
 
+def send_telegram_alert(alert):
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    if not bot_token or not chat_id:
+        return
+    
+    severity = alert.get("severity", "critical")
+    emoji = "🚨" if severity == "critical" else "⚠️"
+    msg_text = (
+        f"{emoji} *AEGISEYE AI — NOVO ALERTA*\n\n"
+        f"*Evento:* {alert.get('title', 'Alerta de Risco')}\n"
+        f"*Severidade:* {severity.upper()}\n"
+        f"*Câmera:* {alert.get('camera', 'Câmera Geral')}\n"
+        f"*Confiança:* {alert.get('confidence', 90)}%\n"
+        f"*Detalhes:* {alert.get('details', 'Detecção comportamental')}\n"
+    )
+    if alert.get("video_url"):
+        msg_text += f"\n🎥 [Assistir Evidência em Vídeo]({alert['video_url']})"
+        
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "text": msg_text,
+        "parse_mode": "Markdown"
+    }).encode('utf-8')
+    
+    try:
+        req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(req, timeout=5):
+            print(f"[TELEGRAM] Notificação de alerta enviada para o chat {chat_id}")
+    except Exception as e:
+        print(f"[TELEGRAM] Notificação Telegram não enviada (token/chat_id ausente ou offline): {e}")
+
 def broadcast_alert_event(alert_data):
+    # Asynchronously dispatch Telegram push notification
+    threading.Thread(target=send_telegram_alert, args=(alert_data,), daemon=True).start()
+
     with sse_lock:
         dead = set()
         payload = f"data: {json.dumps(alert_data)}\n\n".encode('utf-8')

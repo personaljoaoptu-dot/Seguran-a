@@ -1,16 +1,28 @@
 // --- AEGISEYE AI - INTERACTIVE SYSTEM ENGINE ---
 
 document.addEventListener('DOMContentLoaded', () => {
-    // --- LOAD USER SESSION & LOGOUT ---
+    // --- LOAD USER SESSION & RBAC ACCESS CONTROL ---
     const userName = sessionStorage.getItem('aegiseye_user_name') || 'Usuário';
     const tenantName = sessionStorage.getItem('aegiseye_tenant_name') || 'Tenant';
+    const userRole = (sessionStorage.getItem('aegiseye_user_role') || 'admin').toLowerCase();
     
     const elSidebarUser = document.getElementById('sidebar-user-name');
     const elSidebarTenant = document.getElementById('sidebar-tenant-name');
     const btnLogout = document.getElementById('btn-logout');
     
     if (elSidebarUser) elSidebarUser.innerText = userName;
-    if (elSidebarTenant) elSidebarTenant.innerText = tenantName;
+    if (elSidebarTenant) {
+        const roleLabel = userRole === 'operator' ? ' (Operador)' : ' (Admin)';
+        elSidebarTenant.innerText = tenantName + roleLabel;
+    }
+
+    // RBAC: If Operator, restrict Settings tab
+    if (userRole === 'operator') {
+        const btnSettings = document.getElementById('btn-tab-settings');
+        if (btnSettings) {
+            btnSettings.style.display = 'none';
+        }
+    }
     
     if (btnLogout) {
         btnLogout.addEventListener('click', () => {
