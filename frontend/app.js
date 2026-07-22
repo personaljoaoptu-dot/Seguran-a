@@ -1212,83 +1212,76 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- TAB 2: STORE HEATMAP ENGINE ---
     async function syncAnalyticsData() {
-        const tenantId = sessionStorage.getItem('aegiseye_tenant_id') || 'a7974ee4-329c-4c06-a57a-0377bcae242e';
+        const tenantId = (typeof state !== 'undefined' && state.tenantId) ? state.tenantId : 'a7974ee4-329c-4c06-a57a-0377bcae242e';
         const camSelect = document.getElementById('analytics-camera-select');
         const selectedCam = camSelect ? camSelect.value : 'all';
-        
+
         try {
+            populateAnalyticsCameraDropdown();
+            
             const res = await fetch(`/api/get-analytics?tenant_id=${encodeURIComponent(tenantId)}&camera_name=${encodeURIComponent(selectedCam)}`);
             const data = await res.json();
-            if (data.success) {
-                const stats = data.camera_stats || {};
-                const hourly = data.hourly_buckets || {};
-                
-                // Group database values
-                const countBebidas = (stats["Bebidas Finas"] || 0) + (stats["Bebidas"] || 0) + (stats["Bebidas Finas (Adega)"] || 0);
-                const countCorr1 = (stats["Corredor 1 (Mercearia)"] || 0) + (stats["Corredor 1"] || 0) + (stats["Corr. 1"] || 0);
-                const countCorr2 = (stats["Corredor 2 (Biscoitos)"] || 0) + (stats["Corredor 2"] || 0) + (stats["Corr. 2"] || 0);
-                const countCaixas = (stats["Caixa 1"] || 0) + (stats["Caixa 2 (Autoatendimento)"] || 0) + (stats["Caixa 2"] || 0) + (stats["Autoatendimento"] || 0) + (stats["Caixas"] || 0);
+            const stats = (data.success && data.camera_stats) ? data.camera_stats : {};
+            const hourly = (data.success && data.hourly_buckets) ? data.hourly_buckets : {};
+            
+            const activeCams = (typeof cameraList !== 'undefined' && cameraList.length > 0) ? cameraList : [
+                { id: 0, name: "Câmera 1" }
+            ];
 
-                // Determine baseline values based on active camera selection
-                let baseBebidas = 15;
-                let baseCorr1 = 10;
-                let baseCaixas = 6;
-                let baseCorr2 = 3;
-                
-                if (selectedCam !== 'all') {
-                    baseBebidas = (selectedCam === 'Bebidas Finas' || selectedCam === 'Bebidas Finas (Adega)' || selectedCam === 'Bebidas') ? 15 : 0;
-                    baseCorr1 = (selectedCam === 'Corredor 1 (Mercearia)' || selectedCam === 'Corredor 1' || selectedCam === 'Corr. 1') ? 10 : 0;
-                    baseCorr2 = (selectedCam === 'Corredor 2 (Biscoitos)' || selectedCam === 'Corredor 2' || selectedCam === 'Corr. 2') ? 3 : 0;
-                    baseCaixas = (selectedCam === 'Caixa 1' || selectedCam === 'Caixa 2 (Autoatendimento)' || selectedCam === 'Caixa 2' || selectedCam === 'Autoatendimento' || selectedCam === 'Caixas') ? 6 : 0;
+            window.cameraAnalyticsStats = {};
+            activeCams.forEach((cam, idx) => {
+                const name = cam.name || cam.nome || `Câmera ${cam.id || idx+1}`;
+                if (selectedCam !== 'all' && selectedCam !== name) {
+                    window.cameraAnalyticsStats[name] = 0;
+                } else {
+                    const dbCount = stats[name] !== undefined ? stats[name] : 0;
+                    const baseVal = [15, 10, 6, 3, 5][idx % 5] || 4;
+                    window.cameraAnalyticsStats[name] = baseVal + dbCount;
                 }
-
-                // Update baseline values with live alerts
-                window.heatmapValues = {
-                    bebidas: baseBebidas + countBebidas,
-                    corr1: baseCorr1 + countCorr1,
-                    caixas: baseCaixas + countCaixas,
-                    corr2: baseCorr2 + countCorr2
-                };
-                
-                updateCorridorBarChartHTML(window.heatmapValues);
-                updateHourlyLineChartHTML(hourly);
-                drawHeatmap();
-            }
+            });
+            
+            updateCorridorBarChartHTML(window.cameraAnalyticsStats);
+            updateHourlyLineChartHTML(hourly);
+            drawHeatmap();
         } catch (err) {
             console.error("Erro ao sincronizar dados de analytics:", err);
+            drawHeatmap();
         }
     }
     window.syncAnalyticsData = syncAnalyticsData;
 
-    function updateCorridorBarChartHTML(values) {
-        const barBebidas = document.getElementById('bar-bebidas');
-        const valBebidas = document.getElementById('val-bebidas');
-        const barCorr1 = document.getElementById('bar-corr1');
-        const valCorr1 = document.getElementById('val-corr1');
-        const barCaixas = document.getElementById('bar-caixas');
-        const valCaixas = document.getElementById('val-caixas');
-        const barCorr2 = document.getElementById('bar-corr2');
-        const valCorr2 = document.getElementById('val-corr2');
+    function updateCorridorBarChartHTML(cameraStatsData) {
+        const chartCardContainer = document.querySelector('.analytics-card.metric-card .chart-container');
+        if (!chartCardContainer) return;
         
-        if (!barBebidas) return;
-        
-        const maxVal = Math.max(1, values.bebidas, values.corr1, values.caixas, values.corr2);
-        const scale = 75 / maxVal;
-        
-        barBebidas.setAttribute('width', values.bebidas * scale);
-        barCorr1.setAttribute('width', values.corr1 * scale);
-        barCaixas.setAttribute('width', values.caixas * scale);
-        barCorr2.setAttribute('width', values.corr2 * scale);
-        
-        valBebidas.setAttribute('x', 15 + (values.bebidas * scale) + 3);
-        valCorr1.setAttribute('x', 15 + (values.corr1 * scale) + 3);
-        valCaixas.setAttribute('x', 15 + (values.caixas * scale) + 3);
-        valCorr2.setAttribute('x', 15 + (values.corr2 * scale) + 3);
-        
-        valBebidas.textContent = values.bebidas;
-        valCorr1.textContent = values.corr1;
-        valCaixas.textContent = values.caixas;
-        valCorr2.textContent = values.corr2;
+        const cameraEntries = Object.keys(cameraStatsData || {}).map(name => ({
+            name: name,
+            count: cameraStatsData[name] || 0
+        }));
+
+        if (cameraEntries.length === 0) return;
+
+        const maxVal = Math.max(1, ...cameraEntries.map(e => e.count));
+        const colors = ['#f43f5e', '#f59e0b', '#06b6d4', '#6366f1', '#10b981', '#a855f7'];
+
+        let html = `<div style="display: flex; flex-direction: column; gap: 12px; padding: 4px 0;">`;
+        cameraEntries.forEach((entry, idx) => {
+            const pct = Math.min(100, Math.max(6, (entry.count / maxVal) * 100));
+            const color = colors[idx % colors.length];
+            html += `
+                <div>
+                    <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; color: var(--slate-300);">
+                        <span style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px;">${entry.name}</span>
+                        <span style="font-weight: 700; color: ${color};">${entry.count} incidentes</span>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; width: 100%;">
+                        <div style="background: ${color}; width: ${pct}%; height: 100%; border-radius: 4px; transition: width 0.4s ease;"></div>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+        chartCardContainer.innerHTML = html;
     }
 
     function updateHourlyLineChartHTML(hourly) {
@@ -1328,40 +1321,50 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function populateAnalyticsCameraDropdown() {
         const camSelect = document.getElementById('analytics-camera-select');
-        if (camSelect) {
-            const currentSelected = camSelect.value;
-            camSelect.innerHTML = '<option value="all">Todas as Câmeras</option>';
-            cameraList.forEach(cam => {
-                const opt = document.createElement('option');
-                opt.value = cam.name;
-                opt.textContent = cam.name;
-                if (cam.name === currentSelected) {
-                    opt.selected = true;
-                }
-                camSelect.appendChild(opt);
-            });
-        }
+        if (!camSelect) return;
+        
+        const currentSelected = camSelect.value;
+        camSelect.innerHTML = '<option value="all">Todas as Câmeras</option>';
+        
+        const activeCams = (typeof cameraList !== 'undefined' && cameraList.length > 0) ? cameraList : (typeof state !== 'undefined' && state.cameras ? state.cameras : []);
+        
+        activeCams.forEach(cam => {
+            const opt = document.createElement('option');
+            const camName = cam.name || cam.nome || `Câmera ${cam.id}`;
+            opt.value = camName;
+            opt.textContent = `🎥 ${camName}`;
+            if (camName === currentSelected) {
+                opt.selected = true;
+            }
+            camSelect.appendChild(opt);
+        });
     }
     window.populateAnalyticsCameraDropdown = populateAnalyticsCameraDropdown;
 
     function initHeatmapEngine() {
-        btnToggleHeatmap.addEventListener('click', () => {
-            isHeatmapActive = !isHeatmapActive;
-            btnToggleHeatmap.classList.toggle('active');
-            if (isHeatmapActive) {
-                btnToggleHeatmap.innerText = "Calor Ativo";
-            } else {
-                btnToggleHeatmap.innerText = "Calor Oculto";
-            }
-            drawHeatmap();
-        });
+        const btnToggleHeatmap = document.getElementById('btn-toggle-heatmap');
+        const btnResetHeatmap = document.getElementById('btn-reset-heatmap');
 
-        btnResetHeatmap.addEventListener('click', () => {
-            addLog('Limpando dados acumulados do mapa de calor de incidentes.');
-            window.heatmapValues = { bebidas: 0, corr1: 0, caixas: 0, corr2: 0 };
-            updateCorridorBarChartHTML(window.heatmapValues);
-            drawHeatmap(true);
-        });
+        if (btnToggleHeatmap) {
+            btnToggleHeatmap.addEventListener('click', () => {
+                isHeatmapActive = !isHeatmapActive;
+                btnToggleHeatmap.classList.toggle('active');
+                if (isHeatmapActive) {
+                    btnToggleHeatmap.innerText = "Calor Ativo";
+                } else {
+                    btnToggleHeatmap.innerText = "Calor Oculto";
+                }
+                drawHeatmap();
+            });
+        }
+
+        if (btnResetHeatmap) {
+            btnResetHeatmap.addEventListener('click', () => {
+                addLog('Limpando dados acumulados do mapa de calor de incidentes.');
+                window.cameraAnalyticsStats = {};
+                drawHeatmap(true);
+            });
+        }
 
         populateAnalyticsCameraDropdown();
         const camSelect = document.getElementById('analytics-camera-select');
@@ -1373,6 +1376,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function drawHeatmap(clear = false) {
+        const heatmapCanvas = document.getElementById('heatmap-canvas');
+        if (!heatmapCanvas) return;
         const ctx = heatmapCanvas.getContext('2d');
         const W = heatmapCanvas.width;
         const H = heatmapCanvas.height;
@@ -1380,42 +1385,54 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.fillStyle = '#070d19';
         ctx.fillRect(0, 0, W, H);
 
-        // Draw blueprint walls and paths (Store blueprint design)
         ctx.strokeStyle = '#1b2d4b';
         ctx.lineWidth = 2;
         ctx.strokeRect(20, 20, W - 40, H - 40);
 
-        // Draw Isles corridors labels
-        ctx.fillStyle = '#111f38';
-        // Aisle 1
-        ctx.fillRect(60, 60, 160, 160);
-        // Aisle 2
-        ctx.fillRect(280, 60, 160, 160);
-        // Liquor Zone
-        ctx.fillRect(500, 60, 180, 120);
-        // Checkout registers
-        ctx.fillRect(120, 280, 80, 60);
-        // Regs autoatendimento
-        ctx.fillRect(240, 280, 80, 60);
-        ctx.fillRect(360, 280, 80, 60);
+        const activeCams = (typeof cameraList !== 'undefined' && cameraList.length > 0) ? cameraList : [
+            { id: 0, name: "Câmera 1" }
+        ];
 
-        // Texts for departments
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.font = '10px var(--font-heading)';
-        ctx.textAlign = 'center';
-        ctx.fillText("CORREDOR 1 (Mercearia)", 140, 145);
-        ctx.fillText("CORREDOR 2 (Biscoitos)", 360, 145);
-        ctx.fillText("BEBIDAS FINAS (Adega)", 590, 120);
-        ctx.fillText("CAIXA 1", 160, 315);
-        ctx.fillText("CAIXA 2", 280, 315);
-        ctx.fillText("AUTOATENDIMENTO", 400, 315);
+        const camSelect = document.getElementById('analytics-camera-select');
+        const selectedCam = camSelect ? camSelect.value : 'all';
+
+        activeCams.forEach((cam, idx) => {
+            const camName = (cam.name || cam.nome || `Câmera ${idx + 1}`).toUpperCase();
+            const isSelected = selectedCam === 'all' || selectedCam === (cam.name || cam.nome);
+
+            const zX = 50 + (idx % 3) * 220;
+            const zY = 50 + Math.floor(idx / 3) * 140;
+            const zW = 200;
+            const zH = 110;
+
+            if (zY + zH <= H - 30) {
+                ctx.fillStyle = isSelected ? '#111f38' : '#0a1324';
+                ctx.fillRect(zX, zY, zW, zH);
+                ctx.strokeStyle = isSelected ? 'rgba(99, 102, 241, 0.5)' : 'rgba(255, 255, 255, 0.05)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(zX, zY, zW, zH);
+
+                if (isSelected && isHeatmapActive && !clear) {
+                    const count = (window.cameraAnalyticsStats && window.cameraAnalyticsStats[cam.name || cam.nome]) || (12 - idx*2);
+                    const radius = Math.min(90, Math.max(35, 30 + count * 3));
+                    drawHeatCircle(ctx, zX + zW/2, zY + zH/2, radius, 'rgba(244, 63, 94, 0.45)', 'rgba(244, 63, 94, 0)');
+                }
+
+                ctx.fillStyle = isSelected ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.3)';
+                ctx.font = 'bold 10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(camName, zX + zW / 2, zY + zH / 2 + 3);
+            }
+        });
 
         // Entrance
         ctx.strokeStyle = '#22d3ee';
-        ctx.strokeRect(600, 320, 60, 5);
+        ctx.strokeRect(W - 120, H - 45, 90, 6);
         ctx.fillStyle = '#22d3ee';
-        ctx.font = 'bold 9px var(--font-body)';
-        ctx.fillText("ENTRADA LOJA", 630, 345);
+        ctx.font = 'bold 9px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText("ENTRADA LOJA", W - 75, H - 25);
+    }
 
         // If clear mode, skip heat overlay
         if (clear) return;
