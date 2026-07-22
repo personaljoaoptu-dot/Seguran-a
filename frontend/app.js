@@ -232,8 +232,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     type: 'aisle'
                 }));
                 populateCameraSelectDropdowns();
-                updateActiveStreams();
             }
+        } catch (e) {
+            console.warn("[CAMERAS] Não foi possível carregar câmeras remotas, mantendo padrão:", e);
+        }
+    }
     async function fetchTenantAlerts() {
         const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
         if (!tenantId) return;
@@ -1516,7 +1519,6 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.font = 'bold 9px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText("ENTRADA LOJA", W - 75, H - 25);
-    }
 
         // If clear mode, skip heat overlay
         if (clear) return;
