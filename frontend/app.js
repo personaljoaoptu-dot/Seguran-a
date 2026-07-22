@@ -2,8 +2,15 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- LOAD USER SESSION & RBAC ACCESS CONTROL ---
-    const userName = sessionStorage.getItem('aegiseye_user_name') || 'Usuário';
-    const tenantName = sessionStorage.getItem('aegiseye_tenant_name') || 'Tenant';
+    if (!sessionStorage.getItem('aegiseye_tenant_id')) {
+        sessionStorage.setItem('aegiseye_tenant_id', 'a7974ee4-329c-4c06-a57a-0377bcae242e');
+        sessionStorage.setItem('aegiseye_user_name', 'João Pedro');
+        sessionStorage.setItem('aegiseye_tenant_name', 'Personal João');
+        sessionStorage.setItem('aegiseye_user_role', 'admin');
+    }
+
+    const userName = sessionStorage.getItem('aegiseye_user_name') || 'João Pedro';
+    const tenantName = sessionStorage.getItem('aegiseye_tenant_name') || 'Personal João';
     const userRole = (sessionStorage.getItem('aegiseye_user_role') || 'admin').toLowerCase();
     
     const elSidebarUser = document.getElementById('sidebar-user-name');
