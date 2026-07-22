@@ -485,46 +485,63 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(checkEdgeStatus, 8000);
 
     // --- ROUTING / TAB TOGGLE ---
+    function switchTab(targetTab) {
+        activeTab = targetTab;
+        
+        navButtons.forEach(b => {
+            if (b.getAttribute('data-tab') === targetTab) {
+                b.classList.add('active');
+            } else {
+                b.classList.remove('active');
+            }
+        });
+
+        tabViews.forEach(view => {
+            if (view.id === `view-${targetTab}`) {
+                view.style.display = 'block';
+                view.classList.add('active');
+            } else {
+                view.style.display = 'none';
+                view.classList.remove('active');
+            }
+        });
+
+        // Update Header Title / Subtitle
+        if (targetTab === 'live') {
+            if (viewTitle) viewTitle.innerText = "Monitoramento Live";
+            if (viewSubtitle) viewSubtitle.innerText = "Acompanhamento em tempo real e inteligência local";
+        } else if (targetTab === 'analytics') {
+            if (viewTitle) viewTitle.innerText = "Analytics & Heatmaps";
+            if (viewSubtitle) viewSubtitle.innerText = "Métricas agregadas e análise espacial de perdas";
+            if (typeof syncAnalyticsData === 'function') {
+                syncAnalyticsData();
+            } else if (typeof drawHeatmap === 'function') {
+                setTimeout(drawHeatmap, 50);
+            }
+        } else if (targetTab === 'cameras') {
+            if (viewTitle) viewTitle.innerText = "Gerenciar Câmeras";
+            if (viewSubtitle) viewSubtitle.innerText = "Configuração de conexões RTSP locais e inteligência por câmera";
+        } else if (targetTab === 'evidencias') {
+            if (viewTitle) viewTitle.innerText = "Histórico de Evidências";
+            if (viewSubtitle) viewSubtitle.innerText = "Clipes gravados automaticamente durante ocorrências de risco";
+            if (typeof loadEvidences === 'function') loadEvidences();
+        } else if (targetTab === 'saas') {
+            if (viewTitle) viewTitle.innerText = "Simulador SaaS & ROI";
+            if (viewSubtitle) viewSubtitle.innerText = "Simule e entenda a viabilidade comercial do projeto AegisEye AI";
+        } else if (targetTab === 'settings') {
+            if (viewTitle) viewTitle.innerText = "Configurações";
+            if (viewSubtitle) viewSubtitle.innerText = "Parâmetros operacionais do sistema, webhook e chaves de segurança";
+            if (typeof window.loadSettings === 'function') {
+                window.loadSettings();
+            }
+        }
+    }
+    window.switchTab = switchTab;
+
     navButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const targetTab = btn.getAttribute('data-tab');
-            activeTab = targetTab;
-            
-            navButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            tabViews.forEach(view => {
-                view.classList.remove('active');
-                if (view.id === `view-${targetTab}`) {
-                    view.classList.add('active');
-                }
-            });
-
-            // Update Header Title / Subtitle
-            if (targetTab === 'live') {
-                viewTitle.innerText = "Monitoramento Live";
-                viewSubtitle.innerText = "Acompanhamento em tempo real e inteligência local";
-            } else if (targetTab === 'analytics') {
-                viewTitle.innerText = "Analytics & Heatmaps";
-                viewSubtitle.innerText = "Métricas agregadas e análise espacial de perdas";
-                if (typeof syncAnalyticsData === 'function') {
-                    syncAnalyticsData();
-                } else {
-                    setTimeout(drawHeatmap, 50);
-                }
-            } else if (targetTab === 'cameras') {
-                viewTitle.innerText = "Gerenciar Câmeras";
-                viewSubtitle.innerText = "Configuração de conexões RTSP locais e inteligência por câmera";
-            } else if (targetTab === 'saas') {
-                viewTitle.innerText = "Simulador SaaS & ROI";
-                viewSubtitle.innerText = "Simule e entenda a viabilidade comercial do projeto AegisEye AI";
-            } else if (targetTab === 'settings') {
-                viewTitle.innerText = "Configurações";
-                viewSubtitle.innerText = "Parâmetros operacionais do sistema, webhook e chaves de segurança";
-                if (typeof window.loadSettings === 'function') {
-                    window.loadSettings();
-                }
-            }
+            switchTab(targetTab);
         });
     });
 
