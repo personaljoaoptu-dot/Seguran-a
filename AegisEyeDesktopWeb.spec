@@ -12,7 +12,21 @@ a = Analysis(
         ('config_roi.json', '.'),
         ('cameras.json', '.')
     ],
-    hiddenimports=['pg8000', 'cv2', 'ultralytics', 'webview', 'torch', 'torchvision'],
+    hiddenimports=[
+        'unicodedata',
+        'pg8000',
+        'cv2',
+        'ultralytics',
+        'webview',
+        'webview.platforms.winforms',
+        'webview.platforms.edgechromium',
+        'torch',
+        'torchvision',
+        'av',
+        'http.server',
+        'urllib.parse',
+        'urllib.request'
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -25,16 +39,13 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='AegisEyeDesktopWeb',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -42,3 +53,14 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='AegisEyeDesktopWeb',
+)
+

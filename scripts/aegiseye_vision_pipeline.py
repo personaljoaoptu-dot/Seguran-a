@@ -1648,16 +1648,17 @@ def camera_capture_worker(camera_id, camera_name, rtsp_url, simulate=False):
                     frame_id += 1
                     time.sleep(0.033) # 30 FPS
                     
-                    frame = np.zeros((1080, 1920, 3), dtype=np.uint8) + 18
-                    cv2.putText(frame, f"FEED DE VIDEO: {camera_name.upper()}", (50, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-                    cv2.putText(frame, f"Frame: {frame_id} | FPS: 30 | Headless Edge-Node", (50, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (150, 150, 150), 2)
+                    frame = np.zeros((1080, 1920, 3), dtype=np.uint8) + 24
+                    cv2.rectangle(frame, (30, 30), (1890, 1050), (60, 60, 60), 2)
+                    timestamp_str = time.strftime("%Y-%m-%d %H:%M:%S")
+                    cv2.putText(frame, f"CAMERA: {camera_name.upper()}", (60, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 225, 255), 2)
+                    cv2.putText(frame, f"REC: {timestamp_str} | RTSP: {rtsp_url or 'N/A'}", (60, 125), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
+                    cv2.putText(frame, "[ MODO SIMULACAO LOCAL / CAMERA FISICA OFFLINE ]", (60, 165), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 165, 255), 2)
                     
-                    # Add simple simulation motion so that AI has someone to track if simulate is active
-                    if simulate:
-                        # Draw a moving box to simulate a person tracking box
-                        pos_x = int(400 + 300 * math.sin(frame_id * 0.05))
-                        cv2.rectangle(frame, (pos_x, 300), (pos_x + 150, 700), (100, 100, 100), -1)
-                        cv2.putText(frame, "Pessoa Simulada", (pos_x, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                    pos_x = int(500 + 350 * math.sin(frame_id * 0.05))
+                    cv2.rectangle(frame, (pos_x, 350), (pos_x + 180, 850), (80, 80, 80), -1)
+                    cv2.rectangle(frame, (pos_x, 350), (pos_x + 180, 850), (0, 255, 200), 2)
+                    cv2.putText(frame, "PESSOA SIMULADA (TESTE IA)", (pos_x, 325), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 200), 2)
                     
                     resized_clean = cv2.resize(frame, (800, 450))
                     _, jpeg_clean = cv2.imencode('.jpg', resized_clean, [int(cv2.IMWRITE_JPEG_QUALITY), 75])

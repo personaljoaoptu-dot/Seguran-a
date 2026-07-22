@@ -1,6 +1,6 @@
 @echo off
-title AegisEye Desktop Extension Launcher
-echo Iniciando AegisEye Desktop...
-cd /d "C:\Users\Admin\.gemini\antigravity-ide\scratch\aegiseye-dashboard"
-python311\python.exe AegisEyeDesktopWeb.py
-pause
+title AegisEye Desktop AI Launcher
+echo Iniciando AegisEye Desktop (Modo Rapido)...
+cd /d "C:\Users\Admin\.gemini\antigravity-ide\scratch\aegiseye-dashboard\dist\AegisEyeDesktopWeb"
+start "" AegisEyeDesktopWeb.exe
+
