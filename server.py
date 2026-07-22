@@ -514,23 +514,51 @@ class DashboardHandler(http.server.SimpleHTTPRequestHandler):
                     method='POST'
                 )
                 
+                n8n_response = None
                 try:
-                    with urllib.request.urlopen(req, timeout=8) as response:
+                    with urllib.request.urlopen(req, timeout=5) as response:
                         res_body = response.read().decode('utf-8')
                         n8n_response = json.loads(res_body)
                 except Exception as e:
-                    print(f"[ERROR] Falha na comunicação com o n8n: {e}")
-                    self.send_error_response("Falha de autenticação: Serviço de segurança offline.")
-                    return
+                    print(f"[WARN] n8n offline ou erro no webhook ({e}). Executando consulta direta ao banco de dados...")
                 
-                # n8n PostgreSQL query output is typically an array of records
                 user_row = None
-                if isinstance(n8n_response, list) and len(n8n_response) > 0:
-                    user_row = n8n_response[0]
-                elif isinstance(n8n_response, dict):
-                    # In case n8n returns directly the object
-                    user_row = n8n_response
-                
+                if n8n_response:
+                    if isinstance(n8n_response, list) and len(n8n_response) > 0:
+                        user_row = n8n_response[0]
+                    elif isinstance(n8n_response, dict):
+                        user_row = n8n_response
+
+                # Direct PostgreSQL Fallback Query if n8n returned no user or was unreachable
+                if not user_row or 'password_hash' not in user_row:
+                    conn_fb = None
+                    try:
+                        conn_fb = get_db_connection()
+                        cur_fb = conn_fb.cursor()
+                        cur_fb.execute("""
+                            SELECT u.id, u.name, u.email, u.password_hash, u.tenant_id, t.name as tenant_name
+                            FROM public.users u
+                            LEFT JOIN public.tenants t ON u.tenant_id = t.id
+                            WHERE LOWER(u.email) = LOWER(%s);
+                        """, (email,))
+                        row_fb = cur_fb.fetchone()
+                        cur_fb.close()
+                        if row_fb:
+                            user_row = {
+                                "id": row_fb[0],
+                                "name": row_fb[1],
+                                "email": row_fb[2],
+                                "password_hash": row_fb[3],
+                                "tenant_id": row_fb[4],
+                                "tenant_name": row_fb[5] or "Tenant"
+                            }
+                    except Exception as fb_err:
+                        print(f"[ERROR] Falha na consulta de fallback no PostgreSQL: {fb_err}")
+                    finally:
+                        if conn_fb:
+                            try: conn_fb.close()
+                            except Exception: pass
+
                 if user_row and 'password_hash' in user_row:
                     password_hash = user_row['password_hash']
                     tenant_id = user_row.get('tenant_id')
