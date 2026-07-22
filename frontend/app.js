@@ -2,15 +2,14 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     // --- LOAD USER SESSION & RBAC ACCESS CONTROL ---
-    if (!sessionStorage.getItem('aegiseye_tenant_id')) {
-        sessionStorage.setItem('aegiseye_tenant_id', 'a7974ee4-329c-4c06-a57a-0377bcae242e');
-        sessionStorage.setItem('aegiseye_user_name', 'João Pedro');
-        sessionStorage.setItem('aegiseye_tenant_name', 'Personal João');
-        sessionStorage.setItem('aegiseye_user_role', 'admin');
+    const sessionToken = sessionStorage.getItem('aegiseye_session_token');
+    if (!sessionToken) {
+        window.location.href = 'login.html';
+        return;
     }
 
-    const userName = sessionStorage.getItem('aegiseye_user_name') || 'João Pedro';
-    const tenantName = sessionStorage.getItem('aegiseye_tenant_name') || 'Personal João';
+    const userName = sessionStorage.getItem('aegiseye_user_name') || 'Usuário';
+    const tenantName = sessionStorage.getItem('aegiseye_tenant_name') || 'Empresa Conectada';
     const userRole = (sessionStorage.getItem('aegiseye_user_role') || 'admin').toLowerCase();
     
     const elSidebarUser = document.getElementById('sidebar-user-name');
@@ -200,6 +199,46 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 3, name: "Caixa 1", status: "online", device: "Hikvision DS-2CD1023G0", rtsp: "rtsp://192.168.1.100/ch4", profile: "Desistência / Fila Larga", type: "checkout" },
         { id: 4, name: "Caixa 2 (Autoatendimento)", status: "online", device: "Intelbras VIP 1230 D", rtsp: "rtsp://192.168.1.100/ch5", profile: "Checkout Não Escaneado", type: "checkout" }
     ];
+
+    function populateCameraSelectDropdowns() {
+        const selectLive = document.getElementById('camera-select-dropdown');
+        if (selectLive && Array.isArray(cameraList)) {
+            selectLive.innerHTML = '';
+            cameraList.forEach((cam, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.innerText = cam.name;
+                selectLive.appendChild(opt);
+            });
+        }
+    }
+
+    async function fetchTenantCameras() {
+        const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
+        if (!tenantId) return;
+
+        try {
+            const res = await fetch(`/api/get-cameras?tenant_id=${encodeURIComponent(tenantId)}`);
+            const data = await res.json();
+            if (data.success && Array.isArray(data.cameras) && data.cameras.length > 0) {
+                cameraList = data.cameras.map((c, idx) => ({
+                    id: idx,
+                    db_id: c.id,
+                    name: c.name || `Câmera ${idx + 1}`,
+                    status: c.status || 'online',
+                    device: c.device || 'Câmera IP',
+                    rtsp: c.rtsp || '',
+                    profile: 'Ocultamento / Suspeita',
+                    type: 'aisle'
+                }));
+                populateCameraSelectDropdowns();
+                updateActiveStreams();
+            }
+        } catch (e) {
+            console.warn("[CAMERAS] Não foi possível carregar câmeras remotas, mantendo padrão:", e);
+        }
+    }
+    fetchTenantCameras();
 
     let editingCameraId = null;
 

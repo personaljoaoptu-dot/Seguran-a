@@ -3,11 +3,7 @@
 <head>
     <script>
         if (!sessionStorage.getItem('aegiseye_session_token')) {
-            sessionStorage.setItem('aegiseye_session_token', 'demo-session-token');
-            sessionStorage.setItem('aegiseye_tenant_id', 'a7974ee4-329c-4c06-a57a-0377bcae242e');
-            sessionStorage.setItem('aegiseye_user_name', 'João Pedro');
-            sessionStorage.setItem('aegiseye_tenant_name', 'Personal João');
-            sessionStorage.setItem('aegiseye_user_role', 'admin');
+            window.location.href = 'login.html';
         }
     </script>
     <meta charset="UTF-8">
@@ -19,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="style.css?v=20260722_99">
+    <link rel="stylesheet" href="style.css?v=20260722_100">
 </head>
 <body>
     <div class="app-container">
@@ -939,6 +935,6 @@
     </div>
 
     <!-- Javascript Logic -->
-    <script src="app.js?v=20260722_99"></script>
+    <script src="app.js?v=20260722_100"></script>
 </body>
 </html>
