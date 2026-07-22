@@ -234,11 +234,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 populateCameraSelectDropdowns();
                 updateActiveStreams();
             }
+    async function fetchTenantAlerts() {
+        const tenantId = sessionStorage.getItem('aegiseye_tenant_id');
+        if (!tenantId) return;
+
+        try {
+            const res = await fetch(`/api/get-alerts?tenant_id=${encodeURIComponent(tenantId)}`);
+            const data = await res.json();
+            if (data.success && Array.isArray(data.alerts)) {
+                alertsList = data.alerts.map((a, idx) => ({
+                    id: a.id || (idx + 1),
+                    time: a.timestamp ? new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Agora',
+                    severity: a.severity || 'critical',
+                    title: a.title || 'Alerta de Segurança',
+                    details: a.details || 'Atividade suspeita detectada.',
+                    camera: a.camera_name || 'Câmera IP',
+                    confidence: a.confidence_score ? Math.round(a.confidence_score * 100) : 85,
+                    video_url: a.video_url || '',
+                    status: 'active'
+                }));
+                updateAlertsQueueHTML();
+                updateStatsHeader();
+            }
         } catch (e) {
-            console.warn("[CAMERAS] Não foi possível carregar câmeras remotas, mantendo padrão:", e);
+            console.warn("[ALERTS] Erro ao carregar alertas do banco:", e);
         }
     }
-    fetchTenantCameras();
 
     let editingCameraId = null;
 
@@ -411,9 +432,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initHeatmapEngine();
 
     // Database integrations
-    loadCamerasFromDatabase();
-    loadAlertsFromDatabase();
-    setInterval(loadAlertsFromDatabase, 5000);
+    fetchTenantCameras();
+    fetchTenantAlerts();
+    setInterval(fetchTenantAlerts, 5000);
 
     // Edge Status Heartbeat Loop
     async function checkEdgeStatus() {
